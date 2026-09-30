@@ -83,7 +83,7 @@ export function IdeasPage({ filter }: { filter: string }) {
               </div>
               <div className="idea-text">{i.text}{i.hidden && <span className="chip bad">Hidden</span>}</div>
               <div className="muted cell-sent">{shortDate(i.createdAt)}</div>
-              <div className="muted cell-reports">{i.reports ? `${i.reports} flag${i.reports === 1 ? '' : 's'}` : '—'}</div>
+              <div className={`muted cell-reports ${i.reports ? '' : 'none'}`}>{i.reports ? `${i.reports} flag${i.reports === 1 ? '' : 's'}` : '—'}</div>
               <select
                 className={`status ${i.status}`}
                 aria-label={`Status of “${i.text}”`}

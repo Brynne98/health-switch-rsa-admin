@@ -35,8 +35,8 @@ const inline = (ms: number) => { const d = shortDate(ms); return d === 'Today' |
 
 // A finger lifting counts as leaving, so on a phone a tapped tooltip stays until the next tap elsewhere (blur).
 
-/** Where a tooltip sits over a mark at x% across, kept inside the card at the ends. */
-const tipSide = (x: number) => (x < 15 ? 'left' : x > 85 ? 'right' : '');
+/** Tooltips sit beside the mark, inside the chart, so they never cover the numbers above it; past halfway they flip to the left. */
+const tipSide = (x: number) => (x > 50 ? 'flip' : '');
 
 function Spark({ pts, floor, fmt, label }: { pts: Pt[]; floor?: number; fmt: Fmt; label: string }) {
   const [at, setAt] = useState<number | null>(null);
@@ -200,8 +200,8 @@ export function OverviewPage() {
   const r = RANGES.find((x) => x.id === range)!;
 
   const todo = data ? [
-    { count: data.reported.count, title: 'Numbers reported not working', sub: `${data.reported.since24h} reported in the last 24 hours`, go: 'Review', href: '#/numbers' },
-    { count: data.ideas.noStatus, title: 'Open ideas', sub: 'Set to Planned or Done; the app shows it', go: 'Review', href: '#/ideas' },
+    { count: data.reported.count, title: 'Numbers not working', sub: `${data.reported.since24h} in the last 24 hours`, go: 'Review', href: '#/numbers' },
+    { count: data.ideas.noStatus, title: 'Open ideas', sub: 'Mark them Planned or Done', go: 'Review', href: '#/ideas' },
     { count: data.feedback.lastWeek, title: 'New feedback', sub: data.feedback.total ? 'In the last 7 days' : 'Nothing sent yet', go: 'Read', href: '#/feedback' },
     { count: data.ideas.hiddenByReports, title: 'Ideas hidden by flags', sub: 'Three flags hide one', go: 'Check', href: '#/ideas/hidden' },
   ] : [];

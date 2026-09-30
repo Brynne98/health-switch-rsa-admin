@@ -5,7 +5,8 @@ import { api, type Feedback } from './api';
 import { Dialog, IdeaForm } from './Dialog';
 import { shortDate, time } from './format';
 
-const PHONE = '(max-width: 959px)';
+// Up to this width there is no room for the side panel (styles.css, the 1100px block).
+const PHONE = '(max-width: 1100px)';
 const onMedia = (cb: () => void) => { const m = matchMedia(PHONE); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb); };
 
 export function FeedbackPage() {
