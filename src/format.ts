@@ -8,7 +8,7 @@ export function when(ms: number) {
   const time = d.toLocaleTimeString('en-ZA', { timeZone: ZONE, hour: '2-digit', minute: '2-digit' });
   if (day(d) === day(new Date())) return `Today ${time}`;
   if (day(d) === day(new Date(Date.now() - DAY_MS))) return `Yesterday ${time}`;
-  return d.toLocaleDateString('en-GB', { timeZone: ZONE, day: 'numeric', month: 'short' });
+  return `${d.toLocaleDateString('en-GB', { timeZone: ZONE, day: 'numeric', month: 'short' })} ${time}`;
 }
 
 export function time(ms: number) {
@@ -32,7 +32,7 @@ export function longToday() {
 }
 
 export function count(n: number) {
-  return n.toLocaleString('en-ZA').replace(/ /g, ',');
+  return n.toLocaleString('en-US');
 }
 
 export function money(n: number, currency = 'USD') {

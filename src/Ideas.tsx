@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from 'convex/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { api, type Idea, type Status } from './api';
 import { Dialog, IdeaForm, messageOf } from './Dialog';
@@ -39,6 +39,15 @@ export function IdeasPage({ filter }: { filter: string }) {
   const create = useMutation(api.admin.newIdea);
   const edit = useMutation(api.admin.editIdea);
 
+  useEffect(() => {
+    if (menu === null) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.menu-wrap')) setMenu(null);
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', close); };
+  }, [menu]);
   const run = (p: Promise<unknown>) => { setError(null); p.catch((e) => setError(messageOf(e))); };
   const all = ideas ?? [];
   const rows = all.filter(TABS[tab].test);
@@ -49,14 +58,14 @@ export function IdeasPage({ filter }: { filter: string }) {
       <header className="page-head">
         <div>
           <h1>Ideas</h1>
-          <div className="sub">{all.length} ideas · {votes} votes · public in the app</div>
+          <div className="sub">{ideas ? `${all.length} ideas · ${votes} votes · public in the app` : 'Public in the app'}</div>
         </div>
         <button className="primary" onClick={() => setOpen({ kind: 'new' })}>New idea</button>
       </header>
       <div className="seg tabs" role="group" aria-label="Filter">
         {(Object.keys(TABS) as Tab[]).map((k) => (
           <button key={k} aria-pressed={tab === k} onClick={() => { setTab(k); setMenu(null); }}>
-            {TABS[k].label} <span className="muted">{all.filter(TABS[k].test).length}</span>
+            {TABS[k].label}{ideas && <span className="muted"> {all.filter(TABS[k].test).length}</span>}
           </button>
         ))}
       </div>

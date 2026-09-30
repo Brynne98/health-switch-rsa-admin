@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** The browser's own modal: focus trap, Escape and the backdrop come with it. */
 export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -22,6 +22,7 @@ export function IdeaForm({ initial, submitLabel, onSubmit, onCancel }: {
   onCancel: () => void;
 }) {
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const [busy, setBusy] = useState(false);
   useEffect(() => { textRef.current?.focus(); }, []);
   return (
     <form
@@ -30,9 +31,13 @@ export function IdeaForm({ initial, submitLabel, onSubmit, onCancel }: {
         e.preventDefault();
         const text = textRef.current!.value.trim();
         const err = e.currentTarget.querySelector('.error') as HTMLElement;
-        try { await onSubmit(text); } catch (x) { err.textContent = messageOf(x); }
+        if (busy) return;
+        setBusy(true);
+        err.textContent = '';
+        try { await onSubmit(text); } catch (x) { err.textContent = messageOf(x); } finally { setBusy(false); }
       }}
     >
+      <fieldset className="plain-set" disabled={busy}>
       <label className="field">
         <span>Idea</span>
         <textarea
@@ -51,6 +56,7 @@ export function IdeaForm({ initial, submitLabel, onSubmit, onCancel }: {
         <button className="primary">{submitLabel}</button>
         <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
       </div>
+      </fieldset>
     </form>
   );
 }

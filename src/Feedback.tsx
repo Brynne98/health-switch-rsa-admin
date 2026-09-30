@@ -1,11 +1,16 @@
 import { useMutation, useQuery } from 'convex/react';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { api, type Feedback } from './api';
-import { IdeaForm } from './Dialog';
+import { Dialog, IdeaForm } from './Dialog';
 import { dayHeading, time } from './format';
 
+const PHONE = '(max-width: 959px)';
+const onMedia = (cb: () => void) => { const m = matchMedia(PHONE); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb); };
+
 export function FeedbackPage() {
+  // On a phone the side panel sits above a long list, so the form opens as a popup instead.
+  const phone = useSyncExternalStore(onMedia, () => matchMedia(PHONE).matches);
   const rows = useQuery(api.admin.feedback) as Feedback[] | undefined;
   const create = useMutation(api.admin.newIdea);
   const [search, setSearch] = useState('');
@@ -28,7 +33,7 @@ export function FeedbackPage() {
       <header className="page-head">
         <div>
           <h1>Feedback</h1>
-          <div className="sub">{rows?.length ?? 0} messages · private, only you see these</div>
+          <div className="sub">{rows ? `${rows.length} messages · ` : ''}private, only you see these</div>
         </div>
       </header>
       <div className="split">
@@ -58,8 +63,8 @@ export function FeedbackPage() {
             </div>
           ))}
         </section>
-        <aside className="card side-panel" aria-live="polite">
-          {picked ? (
+        <aside className={`card side-panel ${phone && !posted ? 'hide' : ''}`} aria-live="polite">
+          {picked && !phone ? (
             <>
               <div className="h2 large">New idea</div>
               <p className="muted">Goes up on the Ideas list in the app for everyone to vote on. The feedback it came from stays private.</p>
@@ -87,6 +92,23 @@ export function FeedbackPage() {
             <p className="muted">Pick <b>Make an idea</b> on a message to turn it into a public idea. You can reword it first.</p>
           )}
         </aside>
+        {picked && phone && (
+          <Dialog title="New idea" onClose={() => setPicked(null)}>
+            <p className="muted">Goes up on the Ideas list for everyone to vote on. The feedback stays private.</p>
+              <IdeaForm
+                key={picked.id}
+                initial={picked.text}
+                submitLabel="Post idea"
+                onCancel={() => setPicked(null)}
+                onSubmit={async (text) => {
+                  await create({ text });
+                  setMade(new Set(made).add(picked.id));
+                  setPosted(text);
+                  setPicked(null);
+                }}
+              />
+          </Dialog>
+        )}
       </div>
     </>
   );

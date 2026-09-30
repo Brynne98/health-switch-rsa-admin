@@ -2,7 +2,7 @@ import { useQuery } from 'convex/react';
 import { useState } from 'react';
 
 import { api, type Overview, type RevenueChart } from './api';
-import { count, DAY_MS, longToday, money, shortDate, when } from './format';
+import { count, DAY_MS, longToday, money, shortDate, time, when } from './format';
 
 type Range = 'week' | 'month' | 'life';
 const RANGES: { id: Range; label: string; days: number | null; line: string }[] = [
@@ -11,7 +11,7 @@ const RANGES: { id: Range; label: string; days: number | null; line: string }[] 
   { id: 'life', label: 'Lifetime', days: null, line: 'since launch' },
 ];
 
-type Pt = { t: number; v: number };
+type Pt = { t: number; v: number; incomplete?: boolean };
 
 /** One measure of a chart as dated points, oldest first. RevenueCat dates are in seconds. */
 function series(chart: RevenueChart | undefined, match: RegExp, fallback = 0): Pt[] {
@@ -20,7 +20,7 @@ function series(chart: RevenueChart | undefined, match: RegExp, fallback = 0): P
   const m = found < 0 ? fallback : found;
   return chart.points
     .filter((p) => p.m === m)
-    .map((p) => ({ t: p.t < 1e12 ? p.t * 1000 : p.t, v: p.v }))
+    .map((p) => ({ t: p.t < 1e12 ? p.t * 1000 : p.t, v: p.v, incomplete: p.incomplete }))
     .sort((a, b) => a.t - b.t);
 }
 
@@ -28,6 +28,8 @@ const within = (pts: Pt[], from: number, to = Infinity) => pts.filter((p) => p.t
 const sum = (pts: Pt[]) => pts.reduce((n, p) => n + p.v, 0);
 
 function Spark({ pts, floor }: { pts: Pt[]; floor?: number }) {
+  // A period still running would dip the end of the line.
+  pts = pts.filter((p) => !p.incomplete);
   if (pts.length < 2) return <div className="spark-empty" />;
   const vals = pts.map((p) => p.v);
   const lo = floor ?? Math.min(...vals), hi = Math.max(...vals);
@@ -47,7 +49,7 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
     return (
       <div className="card tile-wide">
         <div className="h2">Revenue</div>
-        <p className="muted">Shows here within the hour once the RevenueCat key and project are set in the Convex environment.</p>
+        <p className="muted">No data from RevenueCat yet. It updates every hour; if it stays empty, check the key and project in the Convex environment.</p>
       </div>
     );
   }
@@ -66,9 +68,10 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
   const moves = by('actives_movement');
   const joined = within(series(moves, /new/i, 0), from);
   const left = within(series(moves, /churn|cancel|expir/i, 1), from).map((p) => ({ t: p.t, v: Math.abs(p.v) }));
-  // Days for a week; weeks for anything longer.
-  const step = range.id === 'week' ? DAY_MS : 7 * DAY_MS;
+  // Days for a week; weeks for anything longer, widened so the whole range fits in ten bars.
   const start = joined[0]?.t ?? from;
+  const span = now - start;
+  const step = range.id === 'week' ? DAY_MS : Math.max(7, Math.ceil(span / DAY_MS / 10 / 7) * 7) * DAY_MS;
   const buckets = new Map<number, { up: number; down: number }>();
   const add = (p: Pt, k: 'up' | 'down') => {
     const b = start + Math.floor((p.t - start) / step) * step;
@@ -78,8 +81,11 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
   };
   joined.forEach((p) => add(p, 'up'));
   left.forEach((p) => add(p, 'down'));
-  const cols = [...buckets.entries()].sort((a, b) => a[0] - b[0]).slice(-8);
-  const top = Math.max(1, ...cols.map(([, c]) => Math.max(c.up, c.down)));
+  const cols = [...buckets.entries()].sort((a, b) => a[0] - b[0]);
+  // One scale for both directions, so a cancellation is as tall as a join.
+  const px = Math.min(40 / Math.max(1, ...cols.map(([, c]) => c.up)), 22 / Math.max(1, ...cols.map(([, c]) => c.down)));
+  const updated = Math.max(...charts.map((c) => c.fetchedAt));
+  const source = `RevenueCat · updated ${time(updated)}`;
   const net = sum(joined) - sum(left);
   const last = (pts: Pt[]) => pts[pts.length - 1]?.v ?? 0;
   const fromLabel = got[0] ? shortDate(got[0].t) : '';
@@ -87,7 +93,7 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
   return (
     <>
       <div className="card tile">
-        <div className="tile-head"><span className="tile-label">You get</span><span className="source">RevenueCat</span></div>
+        <div className="tile-head"><span className="tile-label">You get</span><span className="source">{source}</span></div>
         <div className="tile-value">
           <span className="big-num">{money(sum(got), currency)}</span>
           {delta !== null && <span className={`chip ${delta >= 0 ? 'good' : 'bad'}`}>{delta >= 0 ? '+' : '−'}{Math.abs(delta)}% on the {range.days} days before</span>}
@@ -97,21 +103,21 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
       <div className="card tile">
-        <div className="tile-head"><span className="tile-label">Monthly recurring</span><span className="source">RevenueCat</span></div>
+        <div className="tile-head"><span className="tile-label">Monthly recurring</span><span className="source">{source}</span></div>
         <div className="tile-value"><span className="big-num">{money(last(mrr), currency)}</span></div>
         <div className="lbl">what Pro brings in a month if nobody cancels</div>
         <Spark pts={mrr} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
       <div className="card tile">
-        <div className="tile-head"><span className="tile-label">People on Pro</span><span className="source">RevenueCat</span></div>
+        <div className="tile-head"><span className="tile-label">People on Pro</span><span className="source">{source}</span></div>
         <div className="tile-value"><span className="big-num">{count(last(actives))}</span></div>
         <div className="lbl">paying for Pro right now</div>
         <Spark pts={actives} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
       <div className="card tile">
-        <div className="tile-head"><span className="tile-label">Joined and cancelled</span><span className="source">RevenueCat</span></div>
+        <div className="tile-head"><span className="tile-label">Joined and cancelled</span><span className="source">{source}</span></div>
         <div className="tile-value"><span className="big-num">{net >= 0 ? '+' : '−'}{Math.abs(net)}</span><span className="lbl">on Pro, {range.line}</span></div>
         <div className="legend">
           <span><i className="key up" /><b>{sum(joined)}</b> joined</span>
@@ -120,9 +126,9 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
         <div className="moves" aria-hidden="true">
           {cols.map(([t, c]) => (
             <div key={t} className="move">
-              <div className="move-up"><div style={{ height: `${(c.up / top) * 40}px` }} /></div>
+              <div className="move-up"><div style={{ height: `${c.up * px}px` }} /></div>
               <div className="move-zero" />
-              <div className="move-down"><div style={{ height: `${(c.down / top) * 22}px` }} /></div>
+              <div className="move-down"><div style={{ height: `${c.down * px}px` }} /></div>
               <div className="move-label">{range.id === 'week' ? new Date(t).toLocaleDateString('en-GB', { weekday: 'short' }) : shortDate(t)}</div>
             </div>
           ))}
@@ -193,6 +199,8 @@ export function OverviewPage() {
             <div className="card">
               <div className="card-head"><div className="h2">Top ideas</div><a href="#/ideas">All {data.ideas.total}</a></div>
               <div className="rows">
+                {data.ideas.top.length === 0 && <p className="muted">No ideas yet.</p>}
+                {data.ideas.top.length > 0 && data.ideas.top.every((i) => i.votes === 0) && <p className="lbl">No votes yet.</p>}
                 {data.ideas.top.map((i) => (
                   <div key={i.id} className="row">
                     <div className="votes">{i.votes}</div>

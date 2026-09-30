@@ -2,7 +2,7 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { useConvexAuth, useQuery } from 'convex/react';
 import { useEffect, useState } from 'react';
 
-import { api } from './api';
+import { api, type Overview } from './api';
 import { FeedbackPage } from './Feedback';
 import { IdeasPage } from './Ideas';
 import { NumbersPage } from './Numbers';
@@ -46,6 +46,12 @@ export function App() {
   const me = useQuery(api.admin.me, isAuthenticated ? {} : 'skip') as { owner: boolean } | undefined;
   const { signOut } = useAuthActions();
   const [page, filter] = usePage();
+  const overview = useQuery(api.admin.overview, me?.owner ? {} : 'skip') as Overview | undefined;
+  const counts: Partial<Record<Page, string>> = overview ? {
+    feedback: overview.feedback.total >= 50 ? '50+' : String(overview.feedback.total),
+    ideas: String(overview.ideas.total),
+    numbers: String(overview.reported.count),
+  } : {};
 
   if (isLoading || (isAuthenticated && me === undefined)) return <div className="loading" aria-busy="true" />;
   if (!isAuthenticated || !me?.owner) return <SignIn denied={isAuthenticated && me?.owner === false} onDenied={() => void signOut()} />;
@@ -60,6 +66,7 @@ export function App() {
         {PAGES.map((p) => (
           <a key={p.id} className="nav" href={`#/${p.id}`} aria-current={page === p.id ? 'page' : undefined}>
             <Icon>{p.icon}</Icon><span>{p.label}</span>
+            {counts[p.id] && <span className={`nav-count ${p.id === 'numbers' && counts[p.id] !== '0' ? 'chip bad' : ''}`}>{counts[p.id]}</span>}
           </a>
         ))}
         <div className="side-foot">
@@ -73,6 +80,11 @@ export function App() {
         {page === 'feedback' && <FeedbackPage />}
         {page === 'ideas' && <IdeasPage key={filter} filter={filter} />}
         {page === 'numbers' && <NumbersPage />}
+        <footer className="phone-foot">
+          <a href="https://dashboard.convex.dev" target="_blank" rel="noreferrer">Convex ↗</a>
+          <a href="https://app.revenuecat.com" target="_blank" rel="noreferrer">RevenueCat ↗</a>
+          <button className="link" onClick={() => void signOut()}>Sign out</button>
+        </footer>
       </main>
     </div>
   );
