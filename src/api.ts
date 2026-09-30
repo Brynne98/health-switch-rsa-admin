@@ -31,9 +31,12 @@ export type Reported = {
 };
 
 export type RevenueChart = {
-  chart: 'revenue' | 'mrr' | 'actives' | 'actives_movement';
+  chart: 'revenue' | 'mrr' | 'actives' | 'actives_movement' | 'customers_active' | 'customers_new';
   measures: { name: string; unit: string }[];
-  points: { t: number; m: number; v: number; incomplete: boolean }[];
+  /** `s` indexes `segments` on a split chart; the total has none. */
+  points: { t: number; m: number; v: number; incomplete: boolean; s?: number }[];
+  /** RevenueCat's plan lengths: "P1M", "P1Y". */
+  segments?: string[];
   currency?: string;
   fetchedAt: number;
 };
@@ -44,6 +47,7 @@ export type Overview = {
   reported: { count: number; since24h: number };
   ideas: { total: number; noStatus: number; hiddenByReports: number; top: { id: string; text: string; votes: number }[] };
   feedback: { total: number; lastWeek: number };
-  activity: { kind: 'notWorking' | 'idea' | 'feedback'; text: string; at: number }[];
+  /** `day` marks a whole day's count, which has no time of its own. */
+  activity: { kind: 'notWorking' | 'edit' | 'idea' | 'feedback' | 'proJoin' | 'proEnd'; text: string; at: number; day: boolean }[];
   revenue: RevenueChart[];
 };

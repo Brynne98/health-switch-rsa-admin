@@ -13,13 +13,14 @@ const RANGES: { id: Range; label: string; days: number | null; line: string }[] 
 
 type Pt = { t: number; v: number; incomplete?: boolean };
 
-/** One measure of a chart as dated points, oldest first. RevenueCat dates are in seconds. */
-function series(chart: RevenueChart | undefined, match: RegExp, fallback = 0): Pt[] {
+/** One measure of a chart as dated points, oldest first; its total, or one plan's share of a split chart. RevenueCat dates are in seconds. */
+function series(chart: RevenueChart | undefined, match: RegExp, fallback = 0, plan?: string): Pt[] {
   if (!chart) return [];
   const found = chart.measures.findIndex((m) => match.test(m.name));
   const m = found < 0 ? fallback : found;
+  const s = plan === undefined ? undefined : chart.segments?.indexOf(plan) ?? -1;
   return chart.points
-    .filter((p) => p.m === m)
+    .filter((p) => p.m === m && p.s === s)
     .map((p) => ({ t: p.t < 1e12 ? p.t * 1000 : p.t, v: p.v, incomplete: p.incomplete }))
     .sort((a, b) => a.t - b.t);
 }
@@ -91,6 +92,7 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
       </div>
     );
   }
+  const last = (pts: Pt[]) => pts[pts.length - 1]?.v ?? 0;
   const currency = by('revenue')?.currency ?? by('mrr')?.currency ?? 'USD';
   const now = Date.now();
   const from = range.days === null ? 0 : now - range.days * DAY_MS;
@@ -105,10 +107,12 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
 
   const mrr = within(series(by('mrr'), /mrr/i), from);
   const actives = within(series(by('actives'), /active/i), from);
+  // Monthly and yearly plans as they stand today, whatever the range.
+  const planNow = (id: 'mrr' | 'actives', match: RegExp, plan: string) => last(series(by(id), match, 0, plan));
 
   const moves = by('actives_movement');
   const joined = [...within(series(moves, /^new/i, 0), from), ...within(series(moves, /resub/i, 1), from)];
-  const ended = within(series(moves, /churn/i, 2), from).map((p) => ({ t: p.t, v: Math.abs(p.v) }));
+  const ended = within(series(moves, /churn/i, 2), from).map((p) => ({ t: p.t, v: Math.max(0, p.v) }));
   // Days for a week; weeks for anything longer, widened so the whole range fits in ten bars.
   // From the first day's data, not from `now`: `now` moves on every render, and bars keyed on it would be rebuilt under the pointer.
   const start = joined.length ? Math.min(...joined.map((p) => p.t)) : from;
@@ -131,7 +135,6 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
   const updated = Math.max(...charts.map((c) => c.fetchedAt));
   // The job runs hourly, so two hours without an update means it has stopped.
   const stale = now - updated > 2 * 60 * 60 * 1000;
-  const last = (pts: Pt[]) => pts[pts.length - 1]?.v ?? 0;
   const fromLabel = got[0] ? shortDate(got[0].t) : '';
 
   return (
@@ -149,13 +152,15 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
       <div className="card tile small">
         <div className="tile-head"><span className="tile-label">Monthly recurring</span></div>
         <div className="tile-value"><span className="big-num">{money(last(mrr), currency)}</span></div>
-        <div className="lbl">a month if nobody cancels, before VAT and Apple’s cut</div>
+        <div className="lbl"><span className="nowrap">{money(planNow('mrr', /mrr/i, 'P1M'), currency)} monthly</span> · <span className="nowrap">{money(planNow('mrr', /mrr/i, 'P1Y'), currency)} yearly</span></div>
+        <div className="lbl">a month if nobody cancels, after VAT and Apple’s cut</div>
         <Spark pts={mrr} floor={0} label="Monthly recurring" fmt={(p) => [money(p.v, currency), shortDate(p.t)]} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
       <div className="card tile small">
         <div className="tile-head"><span className="tile-label">People on Pro</span></div>
         <div className="tile-value"><span className="big-num">{count(last(actives))}</span></div>
+        <div className="lbl"><span className="nowrap">{count(planNow('actives', /active/i, 'P1M'))} monthly</span> · <span className="nowrap">{count(planNow('actives', /active/i, 'P1Y'))} yearly</span></div>
         <div className="lbl">paying for Pro right now</div>
         <Spark pts={actives} floor={0} label="People on Pro" fmt={(p) => [`${count(p.v)} on Pro`, shortDate(p.t)]} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
@@ -194,6 +199,25 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
   );
 }
 
+/** Phones RevenueCat saw open the app: this week so far, the week before, and every one since launch. */
+function Phones({ charts }: { charts: RevenueChart[] }) {
+  const weeks = series(charts.find((c) => c.chart === 'customers_active'), /active/i);
+  const total = sum(series(charts.find((c) => c.chart === 'customers_new'), /new/i));
+  const week = weeks[weeks.length - 1], before = weeks[weeks.length - 2];
+  return (
+    <div className="card">
+      <div className="h2">Phones</div>
+      {!week ? <p className="muted">No data from RevenueCat yet.</p> : (
+        <>
+          <div className="tile-value"><span className="big-num">{count(week.v)}</span></div>
+          <div className="lbl">opened the app since {inline(week.t)}{before && `, ${count(before.v)} the week before`}</div>
+          <div className="lbl">{count(total)} since launch</div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function OverviewPage() {
   const data = useQuery(api.admin.overview) as Overview | undefined;
   const [range, setRange] = useState<Range>('life');
@@ -223,20 +247,23 @@ export function OverviewPage() {
         <>
           <section className="overview-top">
             <div className="tiles"><Revenue charts={data.revenue} range={r} /></div>
-            <div className="card">
-              <div className="h2">Waiting on you</div>
-              <div className="rows">
-                {todo.map((t) => (
-                  <div key={t.title} className="row todo">
-                    <div className={`badge ${t.count ? 'hot' : ''}`}>{t.count}</div>
-                    <div className="grow">
-                      <div className={t.count ? '' : 'muted'}>{t.title}</div>
-                      <div className="lbl">{t.sub}</div>
+            <div className="overview-side">
+              <div className="card">
+                <div className="h2">Waiting on you</div>
+                <div className="rows">
+                  {todo.map((t) => (
+                    <div key={t.title} className="row todo">
+                      <div className={`badge ${t.count ? 'hot' : ''}`}>{t.count}</div>
+                      <div className="grow">
+                        <div className={t.count ? '' : 'muted'}>{t.title}</div>
+                        <div className="lbl">{t.sub}</div>
+                      </div>
+                      {t.count > 0 && <a className="go" href={t.href}>{t.go}</a>}
                     </div>
-                    {t.count > 0 && <a className="go" href={t.href}>{t.go}</a>}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
+              <Phones charts={data.revenue} />
             </div>
           </section>
           <section className="overview-bottom">
@@ -247,7 +274,7 @@ export function OverviewPage() {
                 {data.activity.slice(0, 6).map((a, i) => (
                   <div key={i} className="row activity">
                     <i className={`dot ${a.kind}`} />
-                    <div className="grow"><div className="clamp">{a.text}</div><div className="lbl">{when(a.at)}</div></div>
+                    <div className="grow"><div className="clamp">{a.text}</div><div className="lbl">{a.day ? shortDate(a.at) : when(a.at)}</div></div>
                   </div>
                 ))}
               </div>

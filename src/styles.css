@@ -70,6 +70,7 @@ h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.4px; }
 h2 { margin: 0 0 8px; font-size: 20px; }
 .muted { color: var(--muted); }
 .lbl { font-size: 13px; color: var(--muted); }
+.nowrap { white-space: nowrap; }
 .grow { flex: 1 1 auto; min-width: 0; }
 .mono, .votes, .big-num, .badge { font-variant-numeric: tabular-nums; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -160,6 +161,10 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .dot { width: 8px; height: 8px; border-radius: 4px; margin-top: 6px; flex-shrink: 0; background: var(--faint); }
 .dot.notWorking { background: var(--red); }
 .dot.idea { background: var(--accent); }
+.dot.proJoin { background: var(--green); }
+/* Hollow: an edit or an ending is news, not a problem. */
+.dot.edit { background: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.dot.proEnd { background: none; box-shadow: inset 0 0 0 2px var(--faint); }
 .votes { width: 28px; flex-shrink: 0; font-size: 17px; font-weight: 700; color: var(--accent); text-align: right; }
 .empty { padding: 56px 24px; text-align: center; }
 
@@ -215,6 +220,7 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .move-up > div { width: 70%; max-width: 28px; border-radius: 3px 3px 0 0; }
 .move-down > div { width: 70%; max-width: 28px; border-radius: 0 0 3px 3px; }
 .move-label { font-size: 11px; color: var(--faint); white-space: nowrap; }
+.overview-side { display: grid; gap: 16px; align-content: start; }
 .overview-bottom { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
 /* Same three columns as the row above, so the card edges line up. */
 .overview-bottom > :first-child { grid-column: span 2; }
@@ -346,7 +352,8 @@ a.cell-dial:hover { text-decoration: underline; }
 /* Small laptop and tablet */
 @media (max-width: 1100px) {
   .overview-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .tiles, .overview-top > .card { grid-column: 1 / -1; }
+  .tiles, .overview-top > .overview-side { grid-column: 1 / -1; }
+  .overview-side { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   .overview-bottom { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .overview-bottom > :first-child { grid-column: auto; }
   /* Ideas: text gets the full width; status, date and flags go on a second line. */
@@ -388,7 +395,7 @@ a.cell-dial:hover { text-decoration: underline; }
   .page-head .seg button { flex: 1 1 0; padding: 0 8px; }
   .tabs { align-self: stretch; overflow: visible; }
   .tabs button { flex: 1 1 auto; padding: 0 6px; font-size: 13px; }
-  .overview-top, .overview-bottom, .tiles { grid-template-columns: minmax(0, 1fr); }
+  .overview-top, .overview-bottom, .tiles, .overview-side { grid-template-columns: minmax(0, 1fr); }
   .tiles { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
   .tiles, .tile-wide, .overview-bottom > :first-child { grid-column: auto; }
   .tile.wide, .tile-wide, .tiles-note { grid-column: 1 / -1; }
