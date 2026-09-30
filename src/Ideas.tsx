@@ -9,8 +9,8 @@ const TABS = {
   all: { label: 'All', test: () => true, empty: ['No ideas yet', 'Ideas people send from the app show here.'] },
   planned: { label: 'Planned', test: (i: Idea) => i.status === 'planned', empty: ['Nothing planned', 'Set an idea’s status to Planned and it shows here, and as Planned in the app.'] },
   done: { label: 'Done', test: (i: Idea) => i.status === 'done', empty: ['Nothing done yet', 'Ideas marked Done show here.'] },
-  reported: { label: 'Reported', test: (i: Idea) => i.reports > 0, empty: ['No reports', 'When someone reports an idea it shows here. Three reports hide it.'] },
-  hidden: { label: 'Hidden', test: (i: Idea) => i.hidden, empty: ['Nothing hidden', 'Ideas hidden by reports or by you show here.'] },
+  flagged: { label: 'Flagged', test: (i: Idea) => i.reports > 0, empty: ['Nothing flagged', 'When someone flags an idea in the app it shows here. Three flags hide it.'] },
+  hidden: { label: 'Hidden', test: (i: Idea) => i.hidden, empty: ['Nothing hidden', 'Ideas hidden by flags or by you show here.'] },
 } as const;
 type Tab = keyof typeof TABS;
 
@@ -65,7 +65,7 @@ export function IdeasPage({ filter }: { filter: string }) {
       <div className="seg tabs" role="group" aria-label="Filter">
         {(Object.keys(TABS) as Tab[]).map((k) => (
           <button key={k} aria-pressed={tab === k} onClick={() => { setTab(k); setMenu(null); }}>
-            {TABS[k].label}{ideas && <span className="muted"> {all.filter(TABS[k].test).length}</span>}
+            {TABS[k].label}{all.some(TABS[k].test) && <span className="muted"> {all.filter(TABS[k].test).length}</span>}
           </button>
         ))}
       </div>
@@ -73,14 +73,14 @@ export function IdeasPage({ filter }: { filter: string }) {
       {!ideas ? <div className="loading" aria-busy="true" /> : (
         <div className="card table">
           <div className="idea-row head" aria-hidden="true">
-            <div className="th num-col">Votes</div><div className="th">Idea</div><div className="th">Sent</div><div className="th">Reports</div><div className="th">Status</div><div />
+            <div className="th num-col">Votes</div><div className="th">Idea</div><div className="th">Posted</div><div className="th">Flags</div><div className="th">Status</div><div />
           </div>
           {rows.map((i) => (
             <div key={i.id} className={`idea-row ${i.hidden ? 'is-hidden' : ''}`}>
               <div className="votes num-col">{i.votes}</div>
               <div className="idea-text">{i.text}{i.hidden && <span className="chip bad">Hidden</span>}</div>
               <div className="muted cell-sent">{shortDate(i.createdAt)}</div>
-              <div className="muted cell-reports">{i.reports ? `${i.reports} report${i.reports === 1 ? '' : 's'}` : '—'}</div>
+              <div className="muted cell-reports">{i.reports ? `${i.reports} flag${i.reports === 1 ? '' : 's'}` : '—'}</div>
               <select
                 className={`status ${i.status}`}
                 aria-label={`Status of “${i.text}”`}

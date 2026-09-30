@@ -3,7 +3,7 @@ import { useState, useSyncExternalStore } from 'react';
 
 import { api, type Feedback } from './api';
 import { Dialog, IdeaForm } from './Dialog';
-import { dayHeading, time } from './format';
+import { shortDate, time } from './format';
 
 const PHONE = '(max-width: 959px)';
 const onMedia = (cb: () => void) => { const m = matchMedia(PHONE); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb); };
@@ -23,7 +23,7 @@ export function FeedbackPage() {
   const shown = (rows ?? []).filter((f) => !q || f.text.toLowerCase().includes(q));
   const groups: { day: string; items: Feedback[] }[] = [];
   for (const f of shown) {
-    const day = dayHeading(f.createdAt);
+    const day = shortDate(f.createdAt);
     if (groups[groups.length - 1]?.day !== day) groups.push({ day, items: [] });
     groups[groups.length - 1].items.push(f);
   }
@@ -38,12 +38,12 @@ export function FeedbackPage() {
       </header>
       <div className="split">
         <section className="card flush">
-          <div className="search-wrap">
+          {rows?.length !== 0 && <div className="search-wrap">
             <label className="search">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
               <input type="search" placeholder="Search feedback" aria-label="Search feedback" value={search} onChange={(e) => setSearch(e.target.value)} />
             </label>
-          </div>
+          </div>}
           {!rows && <div className="loading" aria-busy="true" />}
           {rows && shown.length === 0 && (
             <div className="empty"><div className="h2">{rows.length ? 'Nothing matches' : 'No feedback yet'}</div><p className="muted">{rows.length ? 'Try other words.' : 'Messages sent from the app’s Feedback screen show here.'}</p></div>
@@ -63,7 +63,7 @@ export function FeedbackPage() {
             </div>
           ))}
         </section>
-        <aside className={`card side-panel ${phone && !posted ? 'hide' : ''}`} aria-live="polite">
+        <aside className={`card side-panel ${(phone && !posted) || rows?.length === 0 ? 'hide' : ''}`} aria-live="polite">
           {picked && !phone ? (
             <>
               <div className="h2 large">New idea</div>

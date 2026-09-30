@@ -2,7 +2,7 @@ import { useQuery } from 'convex/react';
 import { useState } from 'react';
 
 import { api, type Overview, type RevenueChart } from './api';
-import { count, DAY_MS, longToday, money, shortDate, time, when } from './format';
+import { count, DAY_MS, longToday, money, shortDate, when } from './format';
 
 type Range = 'week' | 'month' | 'life';
 const RANGES: { id: Range; label: string; days: number | null; line: string }[] = [
@@ -61,15 +61,18 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
   const got = within(revenue, from);
   const before = range.days === null ? [] : within(revenue, from - range.days * DAY_MS, from);
   const delta = before.length && sum(before) > 0 ? Math.round(((sum(got) - sum(before)) / sum(before)) * 100) : null;
+  // A running total: day by day, one sale is a lone spike.
+  let run = 0;
+  const built = got.map((p) => ({ t: p.t, v: (run += p.v) }));
 
   const mrr = within(series(by('mrr'), /mrr/i), from);
   const actives = within(series(by('actives'), /active/i), from);
 
   const moves = by('actives_movement');
-  const joined = within(series(moves, /new/i, 0), from);
-  const left = within(series(moves, /churn|cancel|expir/i, 1), from).map((p) => ({ t: p.t, v: Math.abs(p.v) }));
+  const joined = [...within(series(moves, /^new/i, 0), from), ...within(series(moves, /resub/i, 1), from)];
+  const ended = within(series(moves, /churn/i, 2), from).map((p) => ({ t: p.t, v: Math.abs(p.v) }));
   // Days for a week; weeks for anything longer, widened so the whole range fits in ten bars.
-  const start = joined[0]?.t ?? from;
+  const start = Math.min(from || Infinity, ...joined.map((p) => p.t));
   const span = now - start;
   const step = range.id === 'week' ? DAY_MS : Math.max(7, Math.ceil(span / DAY_MS / 10 / 7) * 7) * DAY_MS;
   const buckets = new Map<number, { up: number; down: number }>();
@@ -80,60 +83,63 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
     buckets.set(b, cur);
   };
   joined.forEach((p) => add(p, 'up'));
-  left.forEach((p) => add(p, 'down'));
+  ended.forEach((p) => add(p, 'down'));
   const cols = [...buckets.entries()].sort((a, b) => a[0] - b[0]);
-  // One scale for both directions, so a cancellation is as tall as a join.
+  // One scale for both directions, so an ending is as tall as a join.
   const px = Math.min(40 / Math.max(1, ...cols.map(([, c]) => c.up)), 22 / Math.max(1, ...cols.map(([, c]) => c.down)));
   const updated = Math.max(...charts.map((c) => c.fetchedAt));
-  const source = `RevenueCat · updated ${time(updated)}`;
-  const net = sum(joined) - sum(left);
+  // The job runs hourly, so two hours without an update means it has stopped.
+  const stale = now - updated > 2 * 60 * 60 * 1000;
   const last = (pts: Pt[]) => pts[pts.length - 1]?.v ?? 0;
   const fromLabel = got[0] ? shortDate(got[0].t) : '';
 
   return (
     <>
-      <div className="card tile">
-        <div className="tile-head"><span className="tile-label">You get</span><span className="source">{source}</span></div>
+      <div className="card tile wide">
+        <div className="tile-head"><span className="tile-label">You get</span></div>
         <div className="tile-value">
           <span className="big-num">{money(sum(got), currency)}</span>
           {delta !== null && <span className={`chip ${delta >= 0 ? 'good' : 'bad'}`}>{delta >= 0 ? '+' : '−'}{Math.abs(delta)}% on the {range.days} days before</span>}
         </div>
         <div className="lbl">{range.line}, after VAT and Apple’s cut</div>
-        <Spark pts={got} floor={0} />
+        <Spark pts={built} floor={0} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
-      <div className="card tile">
-        <div className="tile-head"><span className="tile-label">Monthly recurring</span><span className="source">{source}</span></div>
+      <div className="card tile small">
+        <div className="tile-head"><span className="tile-label">Monthly recurring</span></div>
         <div className="tile-value"><span className="big-num">{money(last(mrr), currency)}</span></div>
-        <div className="lbl">what Pro brings in a month if nobody cancels</div>
-        <Spark pts={mrr} />
+        <div className="lbl">a month if nobody cancels, before VAT and Apple’s cut</div>
+        <Spark pts={mrr} floor={0} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
-      <div className="card tile">
-        <div className="tile-head"><span className="tile-label">People on Pro</span><span className="source">{source}</span></div>
+      <div className="card tile small">
+        <div className="tile-head"><span className="tile-label">People on Pro</span></div>
         <div className="tile-value"><span className="big-num">{count(last(actives))}</span></div>
         <div className="lbl">paying for Pro right now</div>
-        <Spark pts={actives} />
+        <Spark pts={actives} floor={0} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
-      <div className="card tile">
-        <div className="tile-head"><span className="tile-label">Joined and cancelled</span><span className="source">{source}</span></div>
-        <div className="tile-value"><span className="big-num">{net >= 0 ? '+' : '−'}{Math.abs(net)}</span><span className="lbl">on Pro, {range.line}</span></div>
-        <div className="legend">
-          <span><i className="key up" /><b>{sum(joined)}</b> joined</span>
-          <span><i className="key down" /><b>{sum(left)}</b> cancelled</span>
+      <div className="card tile wide">
+        <div className="tile-head"><span className="tile-label">Joined and ended</span></div>
+        <div className="tile-value legend">
+          <span><i className="key up" /><span className="big-num">{sum(joined)}</span> joined</span>
+          <span><i className="key down" /><span className="big-num">{sum(ended)}</span> ended</span>
         </div>
+        <div className="lbl">Pro subscriptions, {range.line}</div>
         <div className="moves" aria-hidden="true">
           {cols.map(([t, c]) => (
             <div key={t} className="move">
               <div className="move-up"><div style={{ height: `${c.up * px}px` }} /></div>
-              <div className="move-zero" />
               <div className="move-down"><div style={{ height: `${c.down * px}px` }} /></div>
-              <div className="move-label">{range.id === 'week' ? new Date(t).toLocaleDateString('en-GB', { weekday: 'short' }) : shortDate(t)}</div>
+              {range.id === 'week' && <div className="move-label">{new Date(t).toLocaleDateString('en-GB', { weekday: 'short' })}</div>}
             </div>
           ))}
         </div>
+        {range.id !== 'week' && <div className="axis"><span>{cols[0] ? shortDate(cols[0][0]) : ''}</span><span>Today</span></div>}
       </div>
+      <p className={`source tiles-note ${stale ? 'stale' : ''}`}>
+        From RevenueCat, in {currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
+      </p>
     </>
   );
 }
@@ -144,10 +150,10 @@ export function OverviewPage() {
   const r = RANGES.find((x) => x.id === range)!;
 
   const todo = data ? [
-    { count: data.reported.count, title: 'Numbers reported not working', sub: `${data.reported.since24h} since yesterday`, go: 'Review', href: '#/numbers' },
-    { count: data.ideas.noStatus, title: 'Ideas with no status', sub: 'Planned shows in the app', go: 'Sort', href: '#/ideas' },
+    { count: data.reported.count, title: 'Numbers reported not working', sub: `${data.reported.since24h} reported in the last 24 hours`, go: 'Review', href: '#/numbers' },
+    { count: data.ideas.noStatus, title: 'Open ideas', sub: 'Set to Planned or Done; the app shows it', go: 'Review', href: '#/ideas' },
     { count: data.feedback.lastWeek, title: 'New feedback', sub: data.feedback.total ? 'In the last 7 days' : 'Nothing sent yet', go: 'Read', href: '#/feedback' },
-    { count: data.ideas.hiddenByReports, title: 'Ideas hidden by reports', sub: 'Three reports hide one', go: 'Check', href: '#/ideas/hidden' },
+    { count: data.ideas.hiddenByReports, title: 'Ideas hidden by flags', sub: 'Three flags hide one', go: 'Check', href: '#/ideas/hidden' },
   ] : [];
 
   return (
@@ -188,7 +194,7 @@ export function OverviewPage() {
               <div className="h2">Latest in the app</div>
               <div className="rows">
                 {data.activity.length === 0 && <p className="muted">Nothing yet.</p>}
-                {data.activity.map((a, i) => (
+                {data.activity.slice(0, 6).map((a, i) => (
                   <div key={i} className="row activity">
                     <i className={`dot ${a.kind}`} />
                     <div className="grow"><div className="clamp">{a.text}</div><div className="lbl">{when(a.at)}</div></div>
@@ -198,21 +204,18 @@ export function OverviewPage() {
             </div>
             <div className="card">
               <div className="card-head"><div className="h2">Top ideas</div><a href="#/ideas">All {data.ideas.total}</a></div>
-              <div className="rows">
-                {data.ideas.top.length === 0 && <p className="muted">No ideas yet.</p>}
-                {data.ideas.top.length > 0 && data.ideas.top.every((i) => i.votes === 0) && <p className="lbl">No votes yet.</p>}
-                {data.ideas.top.map((i) => (
-                  <div key={i.id} className="row">
-                    <div className="votes">{i.votes}</div>
-                    <div className="grow ellipsis">{i.text}</div>
+              {data.ideas.top.length === 0 ? <p className="muted">No ideas yet.</p>
+                : data.ideas.top.every((i) => i.votes === 0) ? <p className="muted">Nobody has voted yet.</p>
+                : (
+                  <div className="rows">
+                    {data.ideas.top.map((i) => (
+                      <div key={i.id} className="row">
+                        <div className="votes">{i.votes}</div>
+                        <div className="grow ellipsis">{i.text}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="card">
-              <div className="h2">Server usage</div>
-              <p className="muted">Function calls, database size and data sent are on the Convex dashboard, under Usage.</p>
-              <a className="go inline" href="https://dashboard.convex.dev" target="_blank" rel="noreferrer">Open Convex ↗</a>
+                )}
             </div>
           </section>
         </>
