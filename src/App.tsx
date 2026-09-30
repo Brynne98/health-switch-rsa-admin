@@ -64,7 +64,7 @@ export function App() {
     <div className="shell">
       <nav className="side" aria-label="Pages">
         <div className="brand">
-          <div className="mark"><div /></div>
+          <img className="mark" src={`${import.meta.env.BASE_URL}icon.png`} alt="" />
           <div><div className="brand-name">Health Switch</div><div className="brand-sub">Admin</div></div>
         </div>
         {PAGES.map((p) => (

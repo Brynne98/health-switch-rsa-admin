@@ -20,7 +20,6 @@
   --seg-on: #fff;
   --hover: rgba(0, 0, 0, 0.055);
   --day: #f9f9fb;
-  --brand-red: #e03c31;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -115,10 +114,9 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 12px 24px; }
 .brand-name { font-weight: 600; }
 .brand-sub { font-size: 12px; color: var(--muted); }
-.mark { width: 32px; height: 32px; border-radius: 8px; background: #001489; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.mark > div { width: 14px; height: 14px; background: var(--brand-red); border-radius: 3px; }
+/* The app's own icon. */
+.mark { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; display: block; }
 .mark.big { width: 48px; height: 48px; border-radius: 12px; }
-.mark.big > div { width: 20px; height: 20px; border-radius: 4px; }
 .nav {
   display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px;
   color: var(--ink); border: 0; background: none; cursor: pointer; text-align: left; width: 100%;

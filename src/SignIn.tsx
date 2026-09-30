@@ -41,7 +41,7 @@ export function SignIn({ denied, onDenied }: { denied: boolean; onDenied: () => 
   return (
     <div className="signin">
       <form className="signin-card" onSubmit={submit}>
-        <div className="mark big"><div /></div>
+        <img className="mark big" src={`${import.meta.env.BASE_URL}icon.png`} alt="" />
         <h1>Health Switch admin</h1>
         <p className="muted">{setup ? 'Set the password for the owner’s email.' : 'Only the owner can sign in.'}</p>
         <label className="field">
