@@ -73,11 +73,14 @@ export function IdeasPage({ filter }: { filter: string }) {
       {!ideas ? <div className="loading" aria-busy="true" /> : (
         <div className="card table">
           <div className="idea-row head" aria-hidden="true">
-            <div className="th num-col">Votes</div><div className="th">Idea</div><div className="th">Posted</div><div className="th">Flags</div><div className="th">Status</div><div />
+            <div className="th center">Votes</div><div className="th">Idea</div><div className="th">Posted</div><div className="th">Flags</div><div className="th">Status</div><div />
           </div>
           {rows.map((i) => (
             <div key={i.id} className={`idea-row ${i.hidden ? 'is-hidden' : ''}`}>
-              <div className="votes num-col">{i.votes}</div>
+              <div className={`vote-pill ${i.votes ? '' : 'none'}`} aria-label={`${i.votes} vote${i.votes === 1 ? '' : 's'}`}>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
+                <span>{i.votes}</span>
+              </div>
               <div className="idea-text">{i.text}{i.hidden && <span className="chip bad">Hidden</span>}</div>
               <div className="muted cell-sent">{shortDate(i.createdAt)}</div>
               <div className="muted cell-reports">{i.reports ? `${i.reports} flag${i.reports === 1 ? '' : 's'}` : '—'}</div>

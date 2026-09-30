@@ -27,23 +27,61 @@ function series(chart: RevenueChart | undefined, match: RegExp, fallback = 0): P
 const within = (pts: Pt[], from: number, to = Infinity) => pts.filter((p) => p.t >= from && p.t < to);
 const sum = (pts: Pt[]) => pts.reduce((n, p) => n + p.v, 0);
 
-function Spark({ pts, floor }: { pts: Pt[]; floor?: number }) {
+/** The value, then what it is: "$1.84", "29 Sep". */
+type Fmt = (p: Pt) => [string, string];
+
+/** A date inside a sentence: "by 29 Sep", "by yesterday". */
+const inline = (ms: number) => { const d = shortDate(ms); return d === 'Today' || d === 'Yesterday' ? d.toLowerCase() : d; };
+
+// A finger lifting counts as leaving, so on a phone a tapped tooltip stays until the next tap elsewhere (blur).
+
+/** Where a tooltip sits over a mark at x% across, kept inside the card at the ends. */
+const tipSide = (x: number) => (x < 15 ? 'left' : x > 85 ? 'right' : '');
+
+function Spark({ pts, floor, fmt, label }: { pts: Pt[]; floor?: number; fmt: Fmt; label: string }) {
+  const [at, setAt] = useState<number | null>(null);
   // A period still running would dip the end of the line.
   pts = pts.filter((p) => !p.incomplete);
   if (pts.length < 2) return <div className="spark-empty" />;
   const vals = pts.map((p) => p.v);
   const lo = floor ?? Math.min(...vals), hi = Math.max(...vals);
-  const xy = vals.map((v, i) => `${((i / (vals.length - 1)) * 300).toFixed(1)},${(52 - ((v - lo) / (hi - lo || 1)) * 44).toFixed(1)}`);
+  const top = (v: number) => 52 - ((v - lo) / (hi - lo || 1)) * 44;
+  const xy = vals.map((v, i) => `${((i / (vals.length - 1)) * 300).toFixed(1)},${top(v).toFixed(1)}`);
   const line = 'M' + xy.join(' L');
+  const n = pts.length;
+  // The crosshair snaps to the nearest day, so the reader aims at a date, not at a 2px line.
+  const pick = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setAt(Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (n - 1)));
+  };
+  const key = (e: React.KeyboardEvent) => {
+    const step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+    if (step) { e.preventDefault(); setAt((i) => Math.min(n - 1, Math.max(0, (i ?? n - 1) + step))); }
+  };
+  const x = at === null ? 0 : (at / (n - 1)) * 100;
+  const [value, what] = at === null ? ['', ''] : fmt(pts[at]);
   return (
-    <svg className="spark" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true">
-      <path d={`${line} L300,56 L0,56 Z`} className="spark-area" />
-      <path d={line} className="spark-line" vectorEffect="non-scaling-stroke" />
-    </svg>
+    <div
+      className="spark-box" tabIndex={0} aria-label={`${label}: use the arrow keys to read each day`}
+      onPointerDown={pick} onPointerMove={pick} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setAt(null); }} onFocus={() => setAt(n - 1)} onBlur={() => setAt(null)} onKeyDown={key}
+    >
+      <svg className="spark" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true">
+        <path d={`${line} L300,56 L0,56 Z`} className="spark-area" />
+        <path d={line} className="spark-line" vectorEffect="non-scaling-stroke" />
+      </svg>
+      {at !== null && (
+        <>
+          <div className="spark-cross" style={{ left: `${x}%` }} />
+          <div className="spark-dot" style={{ left: `${x}%`, top: `${(top(vals[at]) / 56) * 100}%` }} />
+          <div className={`tip ${tipSide(x)}`} style={{ left: `${x}%` }} role="status"><b>{value}</b><span>{what}</span></div>
+        </>
+      )}
+    </div>
   );
 }
 
 function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RANGES)[number] }) {
+  const [bar, setBar] = useState<number | null>(null);
   const by = (id: RevenueChart['chart']) => charts.find((c) => c.chart === id);
   if (charts.length === 0) {
     return (
@@ -72,7 +110,8 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
   const joined = [...within(series(moves, /^new/i, 0), from), ...within(series(moves, /resub/i, 1), from)];
   const ended = within(series(moves, /churn/i, 2), from).map((p) => ({ t: p.t, v: Math.abs(p.v) }));
   // Days for a week; weeks for anything longer, widened so the whole range fits in ten bars.
-  const start = Math.min(from || Infinity, ...joined.map((p) => p.t));
+  // From the first day's data, not from `now`: `now` moves on every render, and bars keyed on it would be rebuilt under the pointer.
+  const start = joined.length ? Math.min(...joined.map((p) => p.t)) : from;
   const span = now - start;
   const step = range.id === 'week' ? DAY_MS : Math.max(7, Math.ceil(span / DAY_MS / 10 / 7) * 7) * DAY_MS;
   const buckets = new Map<number, { up: number; down: number }>();
@@ -85,6 +124,8 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
   joined.forEach((p) => add(p, 'up'));
   ended.forEach((p) => add(p, 'down'));
   const cols = [...buckets.entries()].sort((a, b) => a[0] - b[0]);
+  // What one bar covers: a day, or "15 Sep to 21 Sep".
+  const covers = (t: number) => (step === DAY_MS ? shortDate(t) : `${shortDate(t)} to ${inline(Math.min(t + step - DAY_MS, now))}`);
   // One scale for both directions, so an ending is as tall as a join.
   const px = Math.min(40 / Math.max(1, ...cols.map(([, c]) => c.up)), 22 / Math.max(1, ...cols.map(([, c]) => c.down)));
   const updated = Math.max(...charts.map((c) => c.fetchedAt));
@@ -102,21 +143,21 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
           {delta !== null && <span className={`chip ${delta >= 0 ? 'good' : 'bad'}`}>{delta >= 0 ? '+' : '−'}{Math.abs(delta)}% on the {range.days} days before</span>}
         </div>
         <div className="lbl">{range.line}, after VAT and Apple’s cut</div>
-        <Spark pts={built} floor={0} />
+        <Spark pts={built} floor={0} label="You get" fmt={(p) => [money(p.v, currency), `in total by ${inline(p.t)}`]} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
       <div className="card tile small">
         <div className="tile-head"><span className="tile-label">Monthly recurring</span></div>
         <div className="tile-value"><span className="big-num">{money(last(mrr), currency)}</span></div>
         <div className="lbl">a month if nobody cancels, before VAT and Apple’s cut</div>
-        <Spark pts={mrr} floor={0} />
+        <Spark pts={mrr} floor={0} label="Monthly recurring" fmt={(p) => [money(p.v, currency), shortDate(p.t)]} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
       <div className="card tile small">
         <div className="tile-head"><span className="tile-label">People on Pro</span></div>
         <div className="tile-value"><span className="big-num">{count(last(actives))}</span></div>
         <div className="lbl">paying for Pro right now</div>
-        <Spark pts={actives} floor={0} />
+        <Spark pts={actives} floor={0} label="People on Pro" fmt={(p) => [`${count(p.v)} on Pro`, shortDate(p.t)]} />
         <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
       </div>
       <div className="card tile wide">
@@ -126,9 +167,18 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
           <span><i className="key down" /><span className="big-num">{sum(ended)}</span> ended</span>
         </div>
         <div className="lbl">Pro subscriptions, {range.line}</div>
-        <div className="moves" aria-hidden="true">
-          {cols.map(([t, c]) => (
-            <div key={t} className="move">
+        <div className="moves">
+          {cols.map(([t, c], i) => (
+            <div
+              key={t} className={`move ${bar === i ? 'on' : ''}`} tabIndex={0}
+              aria-label={`${covers(t)}: ${c.up} joined, ${c.down} ended`}
+              onPointerEnter={() => setBar(i)} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setBar(null); }} onFocus={() => setBar(i)} onBlur={() => setBar(null)}
+            >
+              {bar === i && (
+                <div className={`tip ${tipSide(((i + 0.5) / cols.length) * 100)}`} role="status">
+                  <b>{c.up} joined · {c.down} ended</b><span>{covers(t)}</span>
+                </div>
+              )}
               <div className="move-up"><div style={{ height: `${c.up * px}px` }} /></div>
               <div className="move-down"><div style={{ height: `${c.down * px}px` }} /></div>
               {range.id === 'week' && <div className="move-label">{new Date(t).toLocaleDateString('en-GB', { weekday: 'short' })}</div>}

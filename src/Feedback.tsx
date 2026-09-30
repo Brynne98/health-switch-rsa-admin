@@ -36,16 +36,16 @@ export function FeedbackPage() {
           <div className="sub">{rows ? `${rows.length} messages · ` : ''}private, only you see these</div>
         </div>
       </header>
+      {!rows ? <div className="loading" aria-busy="true" /> : (
       <div className="split">
         <section className="card flush">
-          {rows?.length !== 0 && <div className="search-wrap">
+          {!!rows?.length && <div className="search-wrap">
             <label className="search">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
               <input type="search" placeholder="Search feedback" aria-label="Search feedback" value={search} onChange={(e) => setSearch(e.target.value)} />
             </label>
           </div>}
-          {!rows && <div className="loading" aria-busy="true" />}
-          {rows && shown.length === 0 && (
+          {shown.length === 0 && (
             <div className="empty"><div className="h2">{rows.length ? 'Nothing matches' : 'No feedback yet'}</div><p className="muted">{rows.length ? 'Try other words.' : 'Messages sent from the app’s Feedback screen show here.'}</p></div>
           )}
           {groups.map((g) => (
@@ -63,7 +63,7 @@ export function FeedbackPage() {
             </div>
           ))}
         </section>
-        <aside className={`card side-panel ${(phone && !posted) || rows?.length === 0 ? 'hide' : ''}`} aria-live="polite">
+        <aside className={`card side-panel ${(phone && !posted) || rows.length === 0 ? 'hide' : ''}`} aria-live="polite">
           {picked && !phone ? (
             <>
               <div className="h2 large">New idea</div>
@@ -110,6 +110,7 @@ export function FeedbackPage() {
           </Dialog>
         )}
       </div>
+      )}
     </>
   );
 }
