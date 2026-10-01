@@ -10,7 +10,8 @@
   (`36798170+Brynne98@users.noreply.github.com`, set in this repo's git config)
   so the Gmail address is not published. Keep it that way.
 - Branch: `main`.
-- Issues: Linear, team Brynne (`BP`), project **Health Switch RSA**. Built under
+- Issues: Plane, workspace `brynne98`, project **Health Switch RSA** (tickets
+  `HSR-*`; older ones are `BP-*` in Linear). Built under Linear
   BP-211.
 - Sibling: `../health-switch-rsa-app` (private) is the iPhone app **and** the
   Convex backend. The admin's server functions live there, in `app/convex/`,
