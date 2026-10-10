@@ -199,19 +199,31 @@ function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RAN
   );
 }
 
-/** Phones RevenueCat saw open the app: this week so far, the week before, and every one since launch. */
-function Phones({ charts }: { charts: RevenueChart[] }) {
+/**
+ * Downloads, as RevenueCat sees them: phones opening the app for the first time, iPhone and Android (HSR-88).
+ * A download never opened is not counted. Below it, the phones that opened the app this week and the week before.
+ */
+function Downloads({ charts, range }: { charts: RevenueChart[]; range: (typeof RANGES)[number] }) {
+  const fresh = charts.find((c) => c.chart === 'customers_new');
+  const from = range.days === null ? 0 : Date.now() - range.days * DAY_MS;
+  const got = within(series(fresh, /new/i), from);
+  const on = (platform: string) => sum(within(series(fresh, /new/i, 0, platform), from));
+  let run = 0;
+  const built = got.map((p) => ({ t: p.t, v: (run += p.v) }));
   const weeks = series(charts.find((c) => c.chart === 'customers_active'), /active/i);
-  const total = sum(series(charts.find((c) => c.chart === 'customers_new'), /new/i));
   const week = weeks[weeks.length - 1], before = weeks[weeks.length - 2];
   return (
     <div className="card">
-      <div className="h2">Phones</div>
-      {!week ? <p className="muted">No data from RevenueCat yet.</p> : (
+      <div className="h2">Downloads</div>
+      {!fresh ? <p className="muted">No data from RevenueCat yet.</p> : (
         <>
-          <div className="tile-value"><span className="big-num">{count(week.v)}</span></div>
-          <div className="lbl">opened the app since {inline(week.t)}{before && `, ${count(before.v)} the week before`}</div>
-          <div className="lbl">{count(total)} since launch</div>
+          <div className="tile-value"><span className="big-num">{count(sum(got))}</span></div>
+          {/* Rows stored before the split have no platforms to show. */}
+          {fresh.segments && <div className="lbl"><span className="nowrap">{count(on('iOS'))} iPhone</span> · <span className="nowrap">{count(on('Android'))} Android</span></div>}
+          <div className="lbl">phones that opened the app for the first time, {range.line}</div>
+          {week && <div className="lbl">{count(week.v)} opened the app since {inline(week.t)}{before && `, ${count(before.v)} the week before`}</div>}
+          <Spark pts={built} floor={0} label="Downloads" fmt={(p) => [count(p.v), `in total by ${inline(p.t)}`]} />
+          <div className="axis"><span>{got[0] ? shortDate(got[0].t) : ''}</span><span>Today</span></div>
         </>
       )}
     </div>
@@ -263,7 +275,7 @@ export function OverviewPage() {
                   ))}
                 </div>
               </div>
-              <Phones charts={data.revenue} />
+              <Downloads charts={data.revenue} range={r} />
             </div>
           </section>
           <section className="overview-bottom">

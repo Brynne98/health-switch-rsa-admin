@@ -35,7 +35,7 @@ export type RevenueChart = {
   measures: { name: string; unit: string }[];
   /** `s` indexes `segments` on a split chart; the total has none. */
   points: { t: number; m: number; v: number; incomplete: boolean; s?: number }[];
-  /** RevenueCat's plan lengths: "P1M", "P1Y". */
+  /** RevenueCat's plan lengths ("P1M", "P1Y"), or on customers_new its platforms ("iOS", "Android"). */
   segments?: string[];
   currency?: string;
   fetchedAt: number;
