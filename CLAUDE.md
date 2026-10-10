@@ -22,7 +22,8 @@
 - **Frontend:** GitHub Pages, built on every push to `main`.
 - **Backend:** the admin functions ship with the app repo's
   `./build-and-submit.sh --check` (dev, then prod).
-- Never commit, push or deploy without Brynne's say-so, every time.
+- Never merge, push or deploy without Brynne's say-so, every time. Commits on
+  a ticket's own branch need no say-so; a commit straight to `main` does.
 
 # Secrets
 
