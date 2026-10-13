@@ -16,6 +16,7 @@
   --red: #c0271d;
   --red-ink: #a8281c;
   --red-soft: #fbf4f3;
+  --red-fill: #c0271d;
   --green: #0a6e31;
   --green-soft: rgba(10, 110, 49, 0.1);
   --seg: #e4e4ea;
@@ -45,6 +46,8 @@
     --red: #ff6b61;
     --red-ink: #ff8a80;
     --red-soft: rgba(255, 107, 97, 0.16);
+    /* As with the accent: the pale red stays for text, a filled button gets a deeper one with white text. */
+    --red-fill: #d33a2f;
     --green: #4cd97b;
     --green-soft: rgba(76, 217, 123, 0.15);
     --seg: #2c2c2e;
@@ -85,6 +88,7 @@ h2 { margin: 0 0 8px; font-size: 20px; }
   height: 44px; padding: 0 18px; border-radius: 10px; border: 0; cursor: pointer; font-weight: 600;
 }
 .primary { background: var(--accent-fill); color: var(--on-accent); }
+.primary.danger { background: var(--red-fill); color: #fff; }
 .primary:disabled { opacity: 0.5; cursor: default; }
 .secondary { background: var(--secondary); }
 .ghost {
@@ -92,6 +96,8 @@ h2 { margin: 0 0 8px; font-size: 20px; }
   color: var(--accent); cursor: pointer; white-space: nowrap; font-size: 14px;
 }
 .ghost:hover { background: var(--accent-soft); }
+.ghost.danger { color: var(--red); }
+.ghost.danger:hover { background: var(--red-soft); }
 .link { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 8px 0; min-height: 44px; }
 .go {
   font-size: 14px; font-weight: 600; height: 36px; padding: 0 12px; border-radius: 8px;
@@ -101,6 +107,8 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .chip { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
 .chip.good { background: var(--green-soft); color: var(--green); }
 .chip.bad { background: var(--red-soft); color: var(--red-ink); }
+.chip.new { background: var(--accent-soft); color: var(--accent); }
+.chip.quiet { background: var(--seg); color: var(--muted); }
 
 /* Segmented control */
 .seg { display: flex; background: var(--seg); border-radius: 9px; padding: 2px; }
@@ -297,6 +305,22 @@ a.cell-dial:hover { text-decoration: underline; }
 .cell-last { font-size: 14px; }
 .num-row .actions { justify-content: flex-end; gap: 8px; }
 
+/* Hospitals */
+.h-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 90px 110px 200px 170px; gap: 16px; align-items: center;
+  padding: 10px 24px; min-height: 60px; border-bottom: 1px solid var(--line);
+}
+.h-row.head { min-height: 0; padding-top: 12px; padding-bottom: 12px; }
+.h-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* On a wide screen its three cells are columns of the row; narrower, they become one line under the name. */
+.h-meta { display: contents; }
+.h-num { text-align: right; }
+.h-unit { display: none; }
+.h-added { font-size: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.h-row .actions { justify-content: flex-end; gap: 8px; }
+.done { margin: 0; padding: 12px 16px; border-radius: 10px; background: var(--green-soft); color: var(--green); font-weight: 500; }
+.table .search-wrap { border-bottom: 1px solid var(--line); }
+
 /* Forms and dialogs */
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > span:first-child { font-size: 13px; font-weight: 600; color: var(--muted); }
@@ -347,6 +371,13 @@ a.cell-dial:hover { text-decoration: underline; }
   .cell-count { grid-area: count; justify-self: end; }
   .cell-last { grid-area: last; }
   .num-row .actions { grid-area: act; }
+  .h-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name act" "meta act"; gap: 4px 16px; }
+  .h-row.head { display: none; }
+  .h-name { grid-area: name; }
+  .h-meta { grid-area: meta; display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+  .h-meta > :empty { display: none; }
+  .h-unit { display: inline; }
+  .h-row .actions { grid-area: act; }
 }
 
 /* Small laptop and tablet */
@@ -433,4 +464,9 @@ a.cell-dial:hover { text-decoration: underline; }
   .cell-last { grid-area: last; justify-self: end; align-self: center; font-size: 13px; }
   .num-row .actions { grid-area: act; justify-content: stretch; margin-top: 6px; }
   .num-row .actions .ghost { flex: 1 1 0; }
+  .h-row { grid-template-columns: minmax(0, 1fr); grid-template-areas: "name" "meta" "act"; padding: 14px 16px; }
+  .h-row .actions { justify-content: stretch; margin-top: 6px; }
+  .h-row .actions:empty { display: none; }
+  .h-row .actions .ghost { flex: 1 1 0; }
+  .actions.stack { flex-direction: column; }
 }

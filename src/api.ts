@@ -30,6 +30,20 @@ export type Reported = {
   lastReportedAt: number;
 };
 
+export type Hospital = {
+  id: number;
+  name: string;
+  /** For a removed hospital, how many numbers went with it. */
+  numbers: number;
+  fromPhone: boolean;
+  addedAt: number;
+  /** A test or placeholder record the app never shows. */
+  hiddenInApp: boolean;
+  removedAt: number | null;
+  reports: number;
+  lastReportedAt: number | null;
+};
+
 export type RevenueChart = {
   chart: 'revenue' | 'mrr' | 'actives' | 'actives_movement' | 'customers_active' | 'customers_new';
   measures: { name: string; unit: string }[];
@@ -44,6 +58,7 @@ export type RevenueChart = {
 export type Overview = {
   numbers: number;
   hospitals: number;
+  hospitalsReported: number;
   reported: { count: number; since24h: number };
   ideas: { total: number; noStatus: number; hiddenByReports: number; top: { id: string; text: string; votes: number }[] };
   feedback: { total: number; lastWeek: number };
