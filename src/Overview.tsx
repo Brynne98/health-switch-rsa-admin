@@ -1,246 +1,327 @@
 import { useQuery } from 'convex/react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { api, type Overview, type RevenueChart } from './api';
-import { count, DAY_MS, longToday, money, shortDate, when } from './format';
-
-type Range = 'week' | 'month' | 'life';
-const RANGES: { id: Range; label: string; days: number | null; line: string }[] = [
-  { id: 'week', label: '7 days', days: 7, line: 'last 7 days' },
-  { id: 'month', label: '30 days', days: 30, line: 'last 30 days' },
-  { id: 'life', label: 'Lifetime', days: null, line: 'since launch' },
-];
+import { count, DAY_MS, longToday, money, shortDate, time, when } from './format';
 
 type Pt = { t: number; v: number; incomplete?: boolean };
 
-/** One measure of a chart as dated points, oldest first; its total, or one plan's share of a split chart. RevenueCat dates are in seconds. */
-function series(chart: RevenueChart | undefined, match: RegExp, fallback = 0, plan?: string): Pt[] {
+/** One measure of a chart as dated points, oldest first; its total, or one segment's share of a split chart. RevenueCat dates are in seconds. */
+function series(chart: RevenueChart | undefined, match: RegExp, fallback = 0, segment?: string): Pt[] {
   if (!chart) return [];
   const found = chart.measures.findIndex((m) => match.test(m.name));
   const m = found < 0 ? fallback : found;
-  const s = plan === undefined ? undefined : chart.segments?.indexOf(plan) ?? -1;
+  const s = segment === undefined ? undefined : chart.segments?.indexOf(segment) ?? -1;
   return chart.points
     .filter((p) => p.m === m && p.s === s)
     .map((p) => ({ t: p.t < 1e12 ? p.t * 1000 : p.t, v: p.v, incomplete: p.incomplete }))
     .sort((a, b) => a.t - b.t);
 }
 
-const within = (pts: Pt[], from: number, to = Infinity) => pts.filter((p) => p.t >= from && p.t < to);
-const sum = (pts: Pt[]) => pts.reduce((n, p) => n + p.v, 0);
+const sum = (pts: { v: number }[]) => pts.reduce((n, p) => n + p.v, 0);
+const last = (pts: Pt[]) => pts[pts.length - 1]?.v ?? 0;
+const DAYS = 30;
 
-/** The value, then what it is: "$1.84", "29 Sep". */
-type Fmt = (p: Pt) => [string, string];
+/** A day written as "2026-10-08", read at noon UTC so no time zone moves it to another date. */
+const noon = (day: string) => Date.parse(`${day}T12:00:00Z`);
+const longDate = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+/** The last 30 days to yesterday on Apple's clock, which runs behind South Africa's. */
+function appleDays() {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+  return Array.from({ length: DAYS }, (_, k) => isoDay(noon(today) - (DAYS - k) * DAY_MS));
+}
 
-/** A date inside a sentence: "by 29 Sep", "by yesterday". */
-const inline = (ms: number) => { const d = shortDate(ms); return d === 'Today' || d === 'Yesterday' ? d.toLowerCase() : d; };
+/** Whole dollars once there is room to lose the cents. */
+const short = (n: number, currency: string) =>
+  n >= 10 ? new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n) : money(n, currency);
 
-// A finger lifting counts as leaving, so on a phone a tapped tooltip stays until the next tap elsewhere (blur).
+type Day = { t: number; up: number; down: number; wait: boolean };
 
-/** Tooltips sit beside the mark, inside the chart, so they never cover the numbers above it; past halfway they flip to the left. */
-const tipSide = (x: number) => (x > 50 ? 'flip' : '');
-
-function Spark({ pts, floor, fmt, label }: { pts: Pt[]; floor?: number; fmt: Fmt; label: string }) {
+/**
+ * One bar a day, the first measure up from the line and the second down.
+ * The legend holds each side's total and hides that side when tapped. Pointing
+ * at a day, or tapping it on a phone, opens its card beside the bar.
+ */
+function Mirror({ days, names, card, label, height = 230 }: {
+  days: Day[]; names: [string, string]; card: (i: number) => ReactNode; label: string; height?: number;
+}) {
+  const [show, setShow] = useState([true, true]);
   const [at, setAt] = useState<number | null>(null);
-  // A period still running would dip the end of the line.
-  pts = pts.filter((p) => !p.incomplete);
-  if (pts.length < 2) return <div className="spark-empty" />;
-  const vals = pts.map((p) => p.v);
-  const lo = floor ?? Math.min(...vals), hi = Math.max(...vals);
-  const top = (v: number) => 52 - ((v - lo) / (hi - lo || 1)) * 44;
-  const xy = vals.map((v, i) => `${((i / (vals.length - 1)) * 300).toFixed(1)},${top(v).toFixed(1)}`);
-  const line = 'M' + xy.join(' L');
-  const n = pts.length;
-  // The crosshair snaps to the nearest day, so the reader aims at a date, not at a 2px line.
+  const W = 680, padB = 4, top = 10, n = days.length;
+  const val = (d: Day, side: 0 | 1) => (show[side] ? (side ? d.down : d.up) : 0);
+  const maxU = Math.max(1, ...days.map((d) => val(d, 0))), maxD = Math.max(1, ...days.map((d) => val(d, 1)));
+  const plotH = height - top - padB, span = maxU + maxD, zero = top + plotH * (maxU / span), y = (v: number) => (v / span) * plotH;
+  const bw = W / n, gap = Math.max(2, bw * 0.25), w = bw - gap;
+  const step = maxU <= 4 ? 1 : maxU <= 25 ? 5 : 10 * Math.ceil(maxU / 40);
+  const ticks = Array.from({ length: Math.floor(maxU / step) }, (_, k) => (k + 1) * step);
+  const done = days.filter((d) => !d.wait);
+  const totals = [sum(done.map((d) => ({ v: d.up }))), sum(done.map((d) => ({ v: d.down })))];
+  // A bar with its far end rounded; up grows from the line, down hangs from it.
+  const bar = (x: number, h: number, up: boolean) => {
+    if (h <= 0) return '';
+    const r = Math.min(3, w / 2, h), y0 = up ? zero - 1 : zero + 1, s = up ? -1 : 1;
+    return `M${x},${y0} v${s * (h - r)} q0,${s * r} ${r},${s * r} h${w - 2 * r} q${r},0 ${r},${-s * r} v${-s * (h - r)} z`;
+  };
   const pick = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    setAt(Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (n - 1)));
+    const i = Math.floor(((e.clientX - r.left) / r.width) * n);
+    setAt(i >= 0 && i < n ? i : null);
   };
   const key = (e: React.KeyboardEvent) => {
-    const step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
-    if (step) { e.preventDefault(); setAt((i) => Math.min(n - 1, Math.max(0, (i ?? n - 1) + step))); }
+    const s = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+    if (s) { e.preventDefault(); setAt((i) => Math.min(n - 1, Math.max(0, (i ?? n) + s))); }
   };
-  const x = at === null ? 0 : (at / (n - 1)) * 100;
-  const [value, what] = at === null ? ['', ''] : fmt(pts[at]);
+  const left = at === null ? 0 : ((at + 0.5) / n) * 100;
   return (
-    <div
-      className="spark-box" tabIndex={0} aria-label={`${label}: use the arrow keys to read each day`}
-      onPointerDown={pick} onPointerMove={pick} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setAt(null); }} onFocus={() => setAt(n - 1)} onBlur={() => setAt(null)} onKeyDown={key}
-    >
-      <svg className="spark" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true">
-        <path d={`${line} L300,56 L0,56 Z`} className="spark-area" />
-        <path d={line} className="spark-line" vectorEffect="non-scaling-stroke" />
-      </svg>
-      {at !== null && (
+    <>
+      <div className="legend-buttons">
+        {names.map((name, side) => (
+          <button key={name} aria-pressed={show[side]} onClick={() => setShow((s) => s.map((v, k) => (k === side ? !v : v)))}>
+            <i className={`key ${side ? 'down' : 'up'}`} />{name} <b>{count(totals[side])}</b>
+          </button>
+        ))}
+      </div>
+      <div className="mirror">
+        {[0, ...ticks].map((v) => <span key={v} className="y-label" style={{ top: zero - y(v) }}>{v}</span>)}
+        <div
+          className="plot" tabIndex={0} aria-label={`${label}: use the arrow keys to read each day`}
+          onPointerDown={pick} onPointerMove={pick} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setAt(null); }}
+          onFocus={() => setAt((i) => i ?? n - 1)} onBlur={() => setAt(null)} onKeyDown={key}
+        >
+          {/* Stretched to the card's width; the labels are plain text beside it so they keep their size on a phone. */}
+          <svg viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none" style={{ height }} aria-hidden="true">
+            {ticks.map((v) => <line key={v} className="grid" x1={0} x2={W} y1={zero - y(v)} y2={zero - y(v)} />)}
+            <line className="zero" x1={0} x2={W} y1={zero} y2={zero} />
+            {days.map((d, i) => {
+              const x = i * bw + gap / 2;
+              return (
+                <g key={d.t} className={at === null || at === i ? '' : 'dim'}>
+                  {d.wait
+                    ? <rect className="waiting" x={x} y={zero - y(maxU / 2)} width={w} height={y(maxU / 2)} rx={2} vectorEffect="non-scaling-stroke" />
+                    : <><path className="up" d={bar(x, y(val(d, 0)), true)} /><path className="down" d={bar(x, y(val(d, 1)), false)} /></>}
+                </g>
+              );
+            })}
+          </svg>
+          <div className="x-labels">
+            {days.map((d, i) => (n - 1 - i) % 7 === 0 && (
+              // The last label ends at the edge rather than running past it.
+            <span key={d.t} style={i === n - 1 ? { right: 0 } : { left: `${((i + 0.5) / n) * 100}%`, transform: 'translateX(-50%)' }}>{shortDate(d.t)}</span>
+            ))}
+          </div>
+          {at !== null && (
+            <div className={`tip ${left > 50 ? 'flip' : ''}`} style={{ left: `${left}%` }} role="status">
+              <b>{longDate(days[at].t)}</b>
+              {days[at].wait ? <span>Not in from the store yet. Usually arrives in 1 to 2 days.</span> : card(at)}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** Downloads and uninstalls from the stores' own reports (HSR-119). Android shows once it has data. */
+function Downloads({ data }: { data: Overview }) {
+  const rows = data.storeDays;
+  const android = rows.some((r) => r.store === 'android' && r.downloads !== null);
+  const got = (store: 'ios' | 'android', day: string) => rows.find((r) => r.store === store && r.day === day);
+  const latest = rows.filter((r) => r.downloads !== null).map((r) => r.day).sort().pop();
+  const days = appleDays().map((day) => {
+    const ios = got('ios', day), and = got('android', day);
+    const wait = ios?.downloads == null && (!android || and?.downloads == null);
+    return {
+      t: noon(day), wait, day, ios, and,
+      up: (ios?.downloads ?? 0) + (android ? and?.downloads ?? 0 : 0),
+      down: (ios?.uninstalls ?? 0) + (android ? and?.uninstalls ?? 0 : 0),
+    };
+  });
+  const line = (name: string, r?: (typeof rows)[number]) => (
+    <tr key={name}><td>{name}</td><td>{count(r?.downloads ?? 0)}</td><td>{count(r?.uninstalls ?? 0)}</td></tr>
+  );
+  return (
+    <div className="card wide">
+      <div className="h2">Downloads and uninstalls, each day</div>
+      {!latest ? (
+        <p className="muted">No numbers from the App Store yet. They update once a day; if this stays empty, check the App Store Connect key in Convex.</p>
+      ) : (
         <>
-          <div className="spark-cross" style={{ left: `${x}%` }} />
-          <div className="spark-dot" style={{ left: `${x}%`, top: `${(top(vals[at]) / 56) * 100}%` }} />
-          <div className={`tip ${tipSide(x)}`} style={{ left: `${x}%` }} role="status"><b>{value}</b><span>{what}</span></div>
+          <Mirror
+            days={days} names={['Downloads', 'Uninstalls']} label="Downloads and uninstalls"
+            card={(i) => {
+              const d = days[i];
+              return (
+                <table>
+                  <thead><tr><th /><th>Downloads</th><th>Uninstalls</th></tr></thead>
+                  <tbody>
+                    {line('iPhone', d.ios)}
+                    {android && line('Android', d.and)}
+                    {android && <tr className="total"><td>Both</td><td>{count(d.up)}</td><td>{count(d.down)}</td></tr>}
+                  </tbody>
+                </table>
+              );
+            }}
+          />
+          <p className="source">
+            {android ? 'App Store and Google Play' : 'App Store'}, up to {shortDate(noon(latest))}. Apple ends each day at midnight US Pacific time, and only counts uninstalls from people who share data with it, so uninstalls read low.
+          </p>
         </>
       )}
     </div>
   );
 }
 
-function Revenue({ charts, range }: { charts: RevenueChart[]; range: (typeof RANGES)[number] }) {
-  const [bar, setBar] = useState<number | null>(null);
-  const by = (id: RevenueChart['chart']) => charts.find((c) => c.chart === id);
-  if (charts.length === 0) {
-    return (
-      <div className="card tile-wide">
-        <div className="h2">Revenue</div>
-        <p className="muted">No data from RevenueCat yet. It updates every hour; if it stays empty, check the key and project in the Convex environment.</p>
-      </div>
-    );
-  }
-  const last = (pts: Pt[]) => pts[pts.length - 1]?.v ?? 0;
-  const currency = by('revenue')?.currency ?? by('mrr')?.currency ?? 'USD';
-  const now = Date.now();
-  const from = range.days === null ? 0 : now - range.days * DAY_MS;
-
-  const revenue = series(by('revenue'), /revenue|proceeds/i);
-  const got = within(revenue, from);
-  const before = range.days === null ? [] : within(revenue, from - range.days * DAY_MS, from);
-  const delta = before.length && sum(before) > 0 ? Math.round(((sum(got) - sum(before)) / sum(before)) * 100) : null;
-  // A running total: day by day, one sale is a lone spike.
-  let run = 0;
-  const built = got.map((p) => ({ t: p.t, v: (run += p.v) }));
-
-  const mrr = within(series(by('mrr'), /mrr/i), from);
-  const actives = within(series(by('actives'), /active/i), from);
-  // Monthly and yearly plans as they stand today, whatever the range.
-  const planNow = (id: 'mrr' | 'actives', match: RegExp, plan: string) => last(series(by(id), match, 0, plan));
-
-  const moves = by('actives_movement');
-  const joined = [...within(series(moves, /^new/i, 0), from), ...within(series(moves, /resub/i, 1), from)];
-  const ended = within(series(moves, /churn/i, 2), from).map((p) => ({ t: p.t, v: Math.max(0, p.v) }));
-  // Days for a week; weeks for anything longer, widened so the whole range fits in ten bars.
-  // From the first day's data, not from `now`: `now` moves on every render, and bars keyed on it would be rebuilt under the pointer.
-  const start = joined.length ? Math.min(...joined.map((p) => p.t)) : from;
-  const span = now - start;
-  const step = range.id === 'week' ? DAY_MS : Math.max(7, Math.ceil(span / DAY_MS / 10 / 7) * 7) * DAY_MS;
-  const buckets = new Map<number, { up: number; down: number }>();
-  const add = (p: Pt, k: 'up' | 'down') => {
-    const b = start + Math.floor((p.t - start) / step) * step;
-    const cur = buckets.get(b) ?? { up: 0, down: 0 };
-    cur[k] += p.v;
-    buckets.set(b, cur);
-  };
-  joined.forEach((p) => add(p, 'up'));
-  ended.forEach((p) => add(p, 'down'));
-  const cols = [...buckets.entries()].sort((a, b) => a[0] - b[0]);
-  // What one bar covers: a day, or "15 Sep to 21 Sep".
-  const covers = (t: number) => (step === DAY_MS ? shortDate(t) : `${shortDate(t)} to ${inline(Math.min(t + step - DAY_MS, now))}`);
-  // One scale for both directions, so an ending is as tall as a join.
-  const px = Math.min(40 / Math.max(1, ...cols.map(([, c]) => c.up)), 22 / Math.max(1, ...cols.map(([, c]) => c.down)));
-  const updated = Math.max(...charts.map((c) => c.fetchedAt));
-  // The job runs hourly, so two hours without an update means it has stopped.
-  const stale = now - updated > 2 * 60 * 60 * 1000;
-  const fromLabel = got[0] ? shortDate(got[0].t) : '';
-
+/** Pro joins (new and back again) and endings each day, from RevenueCat's movement chart. */
+function ProMoves({ charts }: { charts: RevenueChart[] }) {
+  const moves = charts.find((c) => c.chart === 'actives_movement');
+  const byDay = new Map<number, { up: number; down: number }>();
+  const add = (pts: Pt[], k: 'up' | 'down') => pts.forEach((p) => {
+    const d = byDay.get(p.t) ?? { up: 0, down: 0 };
+    // Ends are net of recoveries, so a day with more restored than lost is negative: nobody left.
+    d[k] += Math.max(0, p.v);
+    byDay.set(p.t, d);
+  });
+  add(series(moves, /^new/i, 0), 'up');
+  add(series(moves, /resub/i, 1), 'up');
+  add(series(moves, /churn/i, 2), 'down');
+  const today = Date.parse(new Date().toISOString().slice(0, 10));
+  const days = Array.from({ length: DAYS }, (_, k) => today - (DAYS - 1 - k) * DAY_MS).map((t) => ({ t, wait: false, ...(byDay.get(t) ?? { up: 0, down: 0 }) }));
   return (
-    <>
-      <div className="card tile wide">
-        <div className="tile-head"><span className="tile-label">You get</span></div>
-        <div className="tile-value">
-          <span className="big-num">{money(sum(got), currency)}</span>
-          {delta !== null && <span className={`chip ${delta >= 0 ? 'good' : 'bad'}`}>{delta >= 0 ? '+' : '−'}{Math.abs(delta)}% on the {range.days} days before</span>}
-        </div>
-        <div className="lbl">{range.line}, after VAT and Apple’s cut</div>
-        <Spark pts={built} floor={0} label="You get" fmt={(p) => [money(p.v, currency), `in total by ${inline(p.t)}`]} />
-        <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
-      </div>
-      <div className="card tile small">
-        <div className="tile-head"><span className="tile-label">Monthly recurring</span></div>
-        <div className="tile-value"><span className="big-num">{money(last(mrr), currency)}</span></div>
-        <div className="lbl"><span className="nowrap">{money(planNow('mrr', /mrr/i, 'P1M'), currency)} monthly</span> · <span className="nowrap">{money(planNow('mrr', /mrr/i, 'P1Y'), currency)} yearly</span></div>
-        <div className="lbl">a month if nobody cancels, after VAT and Apple’s cut</div>
-        <Spark pts={mrr} floor={0} label="Monthly recurring" fmt={(p) => [money(p.v, currency), shortDate(p.t)]} />
-        <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
-      </div>
-      <div className="card tile small">
-        <div className="tile-head"><span className="tile-label">People on Pro</span></div>
-        <div className="tile-value"><span className="big-num">{count(last(actives))}</span></div>
-        <div className="lbl"><span className="nowrap">{count(planNow('actives', /active/i, 'P1M'))} monthly</span> · <span className="nowrap">{count(planNow('actives', /active/i, 'P1Y'))} yearly</span></div>
-        <div className="lbl">paying for Pro right now</div>
-        <Spark pts={actives} floor={0} label="People on Pro" fmt={(p) => [`${count(p.v)} on Pro`, shortDate(p.t)]} />
-        <div className="axis"><span>{fromLabel}</span><span>Today</span></div>
-      </div>
-      <div className="card tile wide">
-        <div className="tile-head"><span className="tile-label">Joined and ended</span></div>
-        <div className="tile-value legend">
-          <span><i className="key up" /><span className="big-num">{sum(joined)}</span> joined</span>
-          <span><i className="key down" /><span className="big-num">{sum(ended)}</span> ended</span>
-        </div>
-        <div className="lbl">Pro subscriptions, {range.line}</div>
-        <div className="moves">
-          {cols.map(([t, c], i) => (
-            <div
-              key={t} className={`move ${bar === i ? 'on' : ''}`} tabIndex={0}
-              aria-label={`${covers(t)}: ${c.up} joined, ${c.down} ended`}
-              onPointerEnter={() => setBar(i)} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setBar(null); }} onFocus={() => setBar(i)} onBlur={() => setBar(null)}
-            >
-              {bar === i && (
-                <div className={`tip ${tipSide(((i + 0.5) / cols.length) * 100)}`} role="status">
-                  <b>{c.up} joined · {c.down} ended</b><span>{covers(t)}</span>
-                </div>
-              )}
-              <div className="move-up"><div style={{ height: `${c.up * px}px` }} /></div>
-              <div className="move-down"><div style={{ height: `${c.down * px}px` }} /></div>
-              {range.id === 'week' && <div className="move-label">{new Date(t).toLocaleDateString('en-GB', { weekday: 'short' })}</div>}
-            </div>
-          ))}
-        </div>
-        {range.id !== 'week' && <div className="axis"><span>{cols[0] ? shortDate(cols[0][0]) : ''}</span><span>Today</span></div>}
-      </div>
-      <p className={`source tiles-note ${stale ? 'stale' : ''}`}>
-        From RevenueCat, in {currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
-      </p>
-    </>
+    <div className="card wide">
+      <div className="h2">Pro started and ended, each day</div>
+      {!moves ? <p className="muted">No data from RevenueCat yet.</p> : (
+        <Mirror
+          days={days} names={['Started', 'Ended']} label="Pro started and ended" height={150}
+          card={(i) => <table><tbody><tr><td>Started</td><td>{days[i].up}</td></tr><tr><td>Ended</td><td>{days[i].down}</td></tr></tbody></table>}
+        />
+      )}
+    </div>
   );
 }
 
-/**
- * Downloads, as RevenueCat sees them: phones opening the app for the first time, iPhone and Android (HSR-88).
- * A download never opened is not counted. Below it, the phones that opened the app this week and the week before.
- */
-function Downloads({ charts, range }: { charts: RevenueChart[]; range: (typeof RANGES)[number] }) {
-  const fresh = charts.find((c) => c.chart === 'customers_new');
-  const from = range.days === null ? 0 : Date.now() - range.days * DAY_MS;
-  const got = within(series(fresh, /new/i), from);
-  const on = (platform: string) => sum(within(series(fresh, /new/i, 0, platform), from));
-  let run = 0;
-  const built = got.map((p) => ({ t: p.t, v: (run += p.v) }));
-  const weeks = series(charts.find((c) => c.chart === 'customers_active'), /active/i);
-  const week = weeks[weeks.length - 1], before = weeks[weeks.length - 2];
+/** What Pro brings in each week, the amount on every bar. The week still running is an outline. */
+function Weekly({ charts, currency }: { charts: RevenueChart[]; currency: string }) {
+  const daily = series(charts.find((c) => c.chart === 'revenue'), /revenue|proceeds/i);
+  // Weeks start on Monday.
+  const monday = (t: number) => t - ((new Date(t).getUTCDay() + 6) % 7) * DAY_MS;
+  const weeks = new Map<number, number>();
+  daily.forEach((p) => weeks.set(monday(p.t), (weeks.get(monday(p.t)) ?? 0) + p.v));
+  const cols = [...weeks].sort((a, b) => a[0] - b[0]).slice(-9);
+  const now = monday(Date.parse(new Date().toISOString().slice(0, 10)));
+  const fourWeeks = sum(daily.filter((p) => p.t >= now - 28 * DAY_MS && p.t < now));
+  const W = 330, h = 150, padB = 18, top = 16, max = Math.max(1, ...cols.map((c) => c[1]));
+  const bw = W / Math.max(cols.length, 1), gap = bw * 0.3, w = bw - gap;
   return (
     <div className="card">
-      <div className="h2">Downloads</div>
-      {!fresh ? <p className="muted">No data from RevenueCat yet.</p> : (
-        <>
-          <div className="tile-value"><span className="big-num">{count(sum(got))}</span></div>
-          {/* Rows stored before the split have no platforms to show. */}
-          {fresh.segments && <div className="lbl"><span className="nowrap">{count(on('iOS'))} iPhone</span> · <span className="nowrap">{count(on('Android'))} Android</span></div>}
-          <div className="lbl">phones that opened the app for the first time, {range.line}</div>
-          {week && <div className="lbl">{count(week.v)} opened the app since {inline(week.t)}{before && `, ${count(before.v)} the week before`}</div>}
-          <Spark pts={built} floor={0} label="Downloads" fmt={(p) => [count(p.v), `in total by ${inline(p.t)}`]} />
-          <div className="axis"><span>{got[0] ? shortDate(got[0].t) : ''}</span><span>Today</span></div>
-        </>
-      )}
+      <div className="tile-label">You get, each week</div>
+      <div className="big-num">{money(fourWeeks, currency)}</div>
+      <div className="lbl">last 4 weeks, after VAT and Apple’s cut</div>
+      <svg className="weekly" viewBox={`0 0 ${W} ${h}`} role="img" aria-label={cols.map(([t, v]) => `week of ${shortDate(t)}: ${money(v, currency)}`).join(', ')}>
+        <line className="zero" x1={0} x2={W} y1={h - padB} y2={h - padB} />
+        {cols.map(([t, v], i) => {
+          const x = i * bw + gap / 2, hh = (v / max) * (h - padB - top), running = t === now;
+          return (
+            <g key={t}>
+              <rect className={running ? 'running' : 'up'} x={x} y={h - padB - hh - 1} width={w} height={Math.max(hh, running ? 1 : 0)} rx={2} />
+              {v > 0 && <text className="val" x={x + w / 2} y={h - padB - hh - 5} textAnchor="middle">{short(v, currency)}</text>}
+              {(i % 2 === 0 || running) && <text x={x + w / 2} y={h - 2} textAnchor="middle">{shortDate(t)}</text>}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function Pro({ charts, currency }: { charts: RevenueChart[]; currency: string }) {
+  const by = (id: RevenueChart['chart']) => charts.find((c) => c.chart === id);
+  const plan = (id: 'mrr' | 'actives', match: RegExp, p?: string) => last(series(by(id), match, 0, p));
+  const monthly = plan('actives', /active/i, 'P1M'), yearly = plan('actives', /active/i, 'P1Y');
+  return (
+    <div className="card">
+      <div className="tile-label">People on Pro</div>
+      <div className="big-num">{count(plan('actives', /active/i))}</div>
+      <div className="plan-split" aria-hidden="true">
+        <div className="up" style={{ flex: monthly || 0.0001 }} /><div className="up soft" style={{ flex: yearly || 0.0001 }} />
+      </div>
+      <div className="legend">
+        <span><i className="key up" />{count(monthly)} monthly</span>
+        <span><i className="key up soft" />{count(yearly)} yearly</span>
+      </div>
+      <div className="lbl gap"><b className="ink">{money(plan('mrr', /mrr/i), currency)}</b> a month if nobody cancels</div>
+    </div>
+  );
+}
+
+/** Downloads in the last 30 days, how many of those phones opened the app, and how many started Pro. */
+function Funnel({ data }: { data: Overview }) {
+  const android = data.storeDays.some((r) => r.store === 'android' && r.downloads !== null);
+  const days = new Set(appleDays());
+  const from = noon([...days][0]);
+  const downloads = data.storeDays.filter((r) => days.has(r.day) && (android || r.store === 'ios')).reduce((n, r) => n + (r.downloads ?? 0), 0);
+  const fresh = data.revenue.find((c) => c.chart === 'customers_new');
+  // RevenueCat sees a phone the first time the app opens; the same stores as the downloads.
+  const opened = sum(series(fresh, /new/i, 0, 'iOS').filter((p) => p.t >= from)) + (android ? sum(series(fresh, /new/i, 0, 'Android').filter((p) => p.t >= from)) : 0);
+  const pro = sum(series(data.revenue.find((c) => c.chart === 'actives_movement'), /^new/i, 0).filter((p) => p.t >= from));
+  const steps: [string, number][] = [['Downloaded', downloads], ['Opened the app', opened], ['Started Pro', pro]];
+  const top = Math.max(1, ...steps.map((s) => s[1]));
+  return (
+    <div className="card">
+      <div className="tile-label">From download to Pro, last 30 days</div>
+      <div className="funnel">
+        {steps.map(([name, v]) => (
+          <div key={name} className="step"><span>{name}</span><div className="bar" style={{ width: `${Math.max(2, (v / top) * 100)}%` }} /><span className="big-num">{count(v)}</span></div>
+        ))}
+      </div>
+      {downloads > 0 && pro > 0 && <div className="lbl">1 in {Math.round(downloads / pro)} downloads goes Pro</div>}
+    </div>
+  );
+}
+
+const KIND: Record<Overview['activity'][number]['kind'], [string, string]> = {
+  notWorking: ['Not working', 'bad'], edit: ['Edit', ''], idea: ['Idea', ''], feedback: ['Feedback', ''], proJoin: ['Pro', 'good'], proEnd: ['Left Pro', ''],
+};
+
+function Latest({ activity }: { activity: Overview['activity'] }) {
+  const groups: { day: string; items: Overview['activity'] }[] = [];
+  for (const a of activity) {
+    const day = shortDate(a.at);
+    if (groups[groups.length - 1]?.day !== day) groups.push({ day, items: [] });
+    groups[groups.length - 1].items.push(a);
+  }
+  return (
+    <div className="card">
+      <div className="tile-label">Latest in the app</div>
+      {activity.length === 0 && <p className="muted">Nothing yet.</p>}
+      {groups.map((g) => (
+        <div key={g.day} className="feed">
+          <div className="feed-day">{g.day}</div>
+          {g.items.map((a, i) => (
+            <div key={i} className="feed-row">
+              <span className={`chip ${KIND[a.kind][1] || 'quiet'}`}>{KIND[a.kind][0]}</span>
+              <span className="clamp">{a.text}{!a.day && <span className="lbl"> · {time(a.at)}</span>}</span>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
 
 export function OverviewPage() {
   const data = useQuery(api.admin.overview) as Overview | undefined;
-  const [range, setRange] = useState<Range>('life');
-  const r = RANGES.find((x) => x.id === range)!;
-
   const todo = data ? [
-    { count: data.reported.count, title: 'Numbers not working', sub: `${data.reported.since24h} in the last 24 hours`, go: 'Review', href: '#/numbers' },
-    { count: data.ideas.noStatus, title: 'Open ideas', sub: 'Mark them Planned or Done', go: 'Review', href: '#/ideas' },
-    { count: data.feedback.lastWeek, title: 'New feedback', sub: data.feedback.total ? 'In the last 7 days' : 'Nothing sent yet', go: 'Read', href: '#/feedback' },
-    { count: data.ideas.hiddenByReports, title: 'Ideas hidden by flags', sub: 'Three flags hide one', go: 'Check', href: '#/ideas/hidden' },
+    { count: data.reported.count, title: 'numbers not working', go: 'Review', href: '#/numbers' },
+    { count: data.ideas.noStatus, title: 'ideas with no status', go: 'Review', href: '#/ideas' },
+    { count: data.feedback.lastWeek, title: 'new feedback this week', go: 'Read', href: '#/feedback' },
+    { count: data.ideas.hiddenByReports, title: 'ideas hidden by flags', go: 'Check', href: '#/ideas/hidden' },
   ] : [];
+  const charts = data?.revenue ?? [];
+  const currency = charts.find((c) => c.currency)?.currency ?? 'USD';
+  const updated = charts.length ? Math.max(...charts.map((c) => c.fetchedAt)) : 0;
+  // The job runs hourly, so two hours without an update means it has stopped.
+  const stale = updated > 0 && Date.now() - updated > 2 * 60 * 60 * 1000;
 
   return (
     <>
@@ -249,65 +330,42 @@ export function OverviewPage() {
           <h1>Overview</h1>
           <div className="sub">{longToday()}{data && ` · ${count(data.numbers)} numbers in ${data.hospitals} hospitals`}</div>
         </div>
-        <div className="seg" role="group" aria-label="Time range">
-          {RANGES.map((x) => (
-            <button key={x.id} aria-pressed={range === x.id} onClick={() => setRange(x.id)}>{x.label}</button>
-          ))}
-        </div>
       </header>
       {!data ? <div className="loading" aria-busy="true" /> : (
-        <>
-          <section className="overview-top">
-            <div className="tiles"><Revenue charts={data.revenue} range={r} /></div>
-            <div className="overview-side">
-              <div className="card">
-                <div className="h2">Waiting on you</div>
-                <div className="rows">
-                  {todo.map((t) => (
-                    <div key={t.title} className="row todo">
-                      <div className={`badge ${t.count ? 'hot' : ''}`}>{t.count}</div>
-                      <div className="grow">
-                        <div className={t.count ? '' : 'muted'}>{t.title}</div>
-                        <div className="lbl">{t.sub}</div>
-                      </div>
-                      {t.count > 0 && <a className="go" href={t.href}>{t.go}</a>}
-                    </div>
-                  ))}
+        <div className="overview">
+          <div className="card wide">
+            <div className="tile-label">Waiting on you</div>
+            <div className="waiting-strip">
+              {todo.map((t) => (
+                <div key={t.title} className={`waiting-item ${t.count ? 'hot' : ''}`}>
+                  <div className="big-num">{t.count}</div>
+                  <div className="lbl">{t.title}</div>
+                  {t.count > 0 && <a href={t.href}>{t.go}</a>}
                 </div>
-              </div>
-              <Downloads charts={data.revenue} range={r} />
+              ))}
             </div>
-          </section>
-          <section className="overview-bottom">
-            <div className="card">
-              <div className="h2">Latest in the app</div>
-              <div className="rows">
-                {data.activity.length === 0 && <p className="muted">Nothing yet.</p>}
-                {data.activity.slice(0, 6).map((a, i) => (
-                  <div key={i} className="row activity">
-                    <i className={`dot ${a.kind}`} />
-                    <div className="grow"><div className="clamp">{a.text}</div><div className="lbl">{a.day ? shortDate(a.at) : when(a.at)}</div></div>
-                  </div>
-                ))}
-              </div>
+          </div>
+          {charts.length === 0 ? (
+            <div className="card wide">
+              <div className="h2">Revenue</div>
+              <p className="muted">No data from RevenueCat yet. It updates every hour; if it stays empty, check the key and project in the Convex environment.</p>
             </div>
-            <div className="card">
-              <div className="card-head"><div className="h2">Top ideas</div><a href="#/ideas">All {data.ideas.total}</a></div>
-              {data.ideas.top.length === 0 ? <p className="muted">No ideas yet.</p>
-                : data.ideas.top.every((i) => i.votes === 0) ? <p className="muted">Nobody has voted yet.</p>
-                : (
-                  <div className="rows">
-                    {data.ideas.top.map((i) => (
-                      <div key={i.id} className="row">
-                        <div className="votes">{i.votes}</div>
-                        <div className="grow ellipsis">{i.text}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
-          </section>
-        </>
+          ) : (
+            <>
+              <Weekly charts={charts} currency={currency} />
+              <Pro charts={charts} currency={currency} />
+            </>
+          )}
+          <Downloads data={data} />
+          <ProMoves charts={charts} />
+          <Funnel data={data} />
+          <Latest activity={data.activity} />
+          {updated > 0 && (
+            <p className={`source wide ${stale ? 'stale' : ''}`}>
+              Money and Pro from RevenueCat, in {currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
+            </p>
+          )}
+        </div>
       )}
     </>
   );

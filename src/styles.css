@@ -23,6 +23,10 @@
   --seg-on: #fff;
   --hover: rgba(0, 0, 0, 0.055);
   --day: #f9f9fb;
+  /* Chart pair: up (downloads, joins) and down (uninstalls, endings). */
+  --dl: #2f4fd8;
+  --un: #d9711c;
+  --grid: rgba(60, 60, 67, 0.1);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -54,6 +58,9 @@
     --seg-on: #545458;
     --hover: rgba(255, 255, 255, 0.08);
     --day: #232325;
+    --dl: #6f86ff;
+    --un: #d27a2c;
+    --grid: rgba(255, 255, 255, 0.08);
     color-scheme: dark;
   }
 }
@@ -75,7 +82,7 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .lbl { font-size: 13px; color: var(--muted); }
 .nowrap { white-space: nowrap; }
 .grow { flex: 1 1 auto; min-width: 0; }
-.mono, .votes, .big-num, .badge { font-variant-numeric: tabular-nums; }
+.mono, .big-num { font-variant-numeric: tabular-nums; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .error { color: var(--red); margin: 0; font-size: 14px; }
@@ -154,85 +161,82 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 /* Cards */
 .card { background: var(--card); border-radius: 14px; padding: 20px 24px; min-width: 0; }
 .card.flush { padding: 0; overflow: hidden; }
-.card-head { display: flex; justify-content: space-between; align-items: baseline; }
 .h2 { font-size: 17px; font-weight: 600; }
 .h2.large { font-size: 20px; font-weight: 700; }
-.rows { margin-top: 10px; }
-.row { display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px solid var(--line); }
-.row.todo { min-height: 64px; }
-.row.activity { align-items: flex-start; padding: 12px 0; min-height: 0; font-size: 14px; }
-.badge {
-  width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
-  font-size: 17px; font-weight: 700; flex-shrink: 0; background: var(--seg); color: var(--faint);
-}
-.badge.hot { background: var(--red-soft); color: var(--red-ink); }
-.dot { width: 8px; height: 8px; border-radius: 4px; margin-top: 6px; flex-shrink: 0; background: var(--faint); }
-.dot.notWorking { background: var(--red); }
-.dot.idea { background: var(--accent); }
-.dot.proJoin { background: var(--green); }
-/* Hollow: an edit or an ending is news, not a problem. */
-.dot.edit { background: none; box-shadow: inset 0 0 0 2px var(--accent); }
-.dot.proEnd { background: none; box-shadow: inset 0 0 0 2px var(--faint); }
-.votes { width: 28px; flex-shrink: 0; font-size: 17px; font-weight: 700; color: var(--accent); text-align: right; }
 .empty { padding: 56px 24px; text-align: center; }
 
-/* Overview */
-.overview-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
-.tiles { grid-column: span 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.tile { display: flex; flex-direction: column; padding: 18px 22px; min-height: 220px; }
-.tile-wide, .tiles-note { grid-column: span 2; }
-.tile-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; white-space: nowrap; }
-.tile-label { font-weight: 600; }
-.source { font-size: 12px; color: var(--faint); }
-.tiles-note { margin: -4px 0 0; }
-.tiles-note.stale { color: var(--red); font-weight: 600; }
-.tile-value { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+/* Overview: two columns, a wide card spans both. */
+.overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.overview > .wide { grid-column: 1 / -1; }
+.tile-label { font-weight: 600; font-size: 14px; color: var(--muted); }
 .big-num { font-size: 32px; font-weight: 700; letter-spacing: -0.3px; }
-.spark-box {
-  /* The clear border keeps 10px above the line and still counts as part of the hover area. */
-  position: relative; margin-top: auto; height: 66px; border-top: 10px solid transparent; cursor: crosshair; outline-offset: 4px;
+.source { font-size: 12px; color: var(--faint); margin: 8px 0 0; }
+.source.stale { color: var(--red); font-weight: 600; }
+.ink { color: var(--ink); }
+.lbl.gap { margin-top: 10px; }
+.waiting-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.waiting-item { border-radius: 10px; padding: 10px 12px; background: var(--bg); }
+.waiting-item .big-num { font-size: 22px; }
+.waiting-item.hot { background: var(--red-soft); }
+.waiting-item.hot .big-num { color: var(--red-ink); }
+.waiting-item a { font-size: 14px; font-weight: 600; display: inline-block; padding: 6px 0 0; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.legend > span { display: flex; align-items: center; gap: 6px; }
+.key { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
+.key.up, .plan-split .up { background: var(--dl); }
+.key.down { background: var(--un); }
+.up.soft { background: color-mix(in srgb, var(--dl) 45%, var(--card)); }
+.plan-split { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; margin: 10px 0 6px; }
+/* Each legend item is a button that hides its side of the chart. */
+.legend-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; }
+.legend-buttons button {
+  display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: none; cursor: pointer; font-size: 13px;
 }
-.spark { width: 100%; height: 56px; display: block; }
-.spark-cross { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--faint); opacity: 0.5; pointer-events: none; }
-.spark-dot {
-  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
-  background: var(--accent); box-shadow: 0 0 0 2px var(--card); pointer-events: none;
-}
-/* One tooltip for every chart: the value strong, what it is below. */
+.legend-buttons b { font-variant-numeric: tabular-nums; }
+.legend-buttons button[aria-pressed="false"] { opacity: 0.45; }
+.legend-buttons button[aria-pressed="false"] .key { background: var(--faint); }
+/* A gutter for the counts, then the bars, stretched to the card. */
+.mirror { position: relative; padding-left: 26px; }
+.plot { position: relative; outline-offset: 4px; touch-action: pan-y; }
+.y-label { position: absolute; left: 0; transform: translateY(-50%); font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.x-labels { position: relative; height: 16px; margin-top: 4px; }
+.x-labels span { position: absolute; font-size: 11px; color: var(--faint); white-space: nowrap; }
+/* A tap on a phone focuses the chart too; the ring is for the keyboard only. */
+.plot:focus:not(:focus-visible) { outline: none; }
+.mirror svg, .weekly { display: block; width: 100%; overflow: visible; }
+.weekly { height: auto; }
+.weekly text { fill: var(--faint); font-size: 11px; }
+.weekly { margin-top: 8px; }
+.weekly text.val { fill: var(--muted); font-weight: 600; }
+.mirror .grid { stroke: var(--grid); }
+.mirror .zero, .weekly .zero { stroke: var(--faint); }
+.mirror path.up, .weekly rect.up { fill: var(--dl); }
+.mirror path.down { fill: var(--un); }
+.mirror .waiting { fill: none; stroke: var(--faint); stroke-dasharray: 3 3; }
+.weekly .running { fill: none; stroke: var(--dl); stroke-dasharray: 3 2; }
+.mirror g { transition: opacity 0.12s; }
+.mirror g.dim { opacity: 0.3; }
+/* One pop-up for every chart: the date strong, the numbers below. Past halfway it flips to the left. */
 .tip {
-  position: absolute; top: 0; transform: translateX(10px); z-index: 5; pointer-events: none;
-  display: flex; flex-direction: column; gap: 1px; padding: 6px 10px; border-radius: 8px; white-space: nowrap;
-  background: var(--raised); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14), 0 0 0 1px var(--line); font-size: 12px; color: var(--muted);
+  position: absolute; top: 4px; transform: translateX(14px); z-index: 5; pointer-events: none;
+  display: flex; flex-direction: column; gap: 6px; padding: 9px 11px; border-radius: 10px; white-space: nowrap;
+  background: var(--raised); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), 0 0 0 1px var(--line); font-size: 12px; color: var(--muted);
 }
-.tip b { font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.tip.flip { transform: translateX(calc(-100% - 10px)); }
-/* On a bar the tooltip starts at the bar's edge rather than its middle. */
-.move > .tip { left: 100%; transform: translateX(4px); }
-.move > .tip.flip { left: 0; transform: translateX(calc(-100% - 4px)); }
-.spark-empty { margin-top: auto; height: 66px; }
-.spark-area { fill: var(--accent-soft); }
-.spark-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
-.axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--faint); margin-top: 4px; }
-.legend { gap: 20px; }
-.legend > span { display: flex; align-items: baseline; gap: 6px; }
-.key { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-.key.up, .move-up > div { background: var(--accent); }
-.key.down, .move-down > div { background: var(--red); }
-.moves { display: flex; gap: 6px; margin-top: auto; padding-top: 10px; position: relative; }
-/* One zero line under every bar, not a piece per bar. */
-.moves::after { content: ""; position: absolute; left: 0; right: 0; top: 50px; height: 1px; background: var(--field); }
-.move { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; min-width: 0; position: relative; border-radius: 6px; outline-offset: 2px; }
-.move.on { background: var(--hover); }
-.move-up { height: 40px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
-.move-down { height: 22px; width: 100%; display: flex; align-items: flex-start; justify-content: center; }
-.move-up > div { width: 70%; max-width: 28px; border-radius: 3px 3px 0 0; }
-.move-down > div { width: 70%; max-width: 28px; border-radius: 0 0 3px 3px; }
-.move-label { font-size: 11px; color: var(--faint); white-space: nowrap; }
-.overview-side { display: grid; gap: 16px; align-content: start; }
-.overview-bottom { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
-/* Same three columns as the row above, so the card edges line up. */
-.overview-bottom > :first-child { grid-column: span 2; }
-.card-head + .muted { margin: 12px 0 0; }
+.tip b { font-size: 13px; color: var(--ink); }
+.tip.flip { transform: translateX(calc(-100% - 14px)); }
+.tip table { border-collapse: collapse; font-variant-numeric: tabular-nums; color: var(--ink); }
+.tip th { font-weight: 500; color: var(--muted); font-size: 11px; text-align: right; padding: 0 0 3px 14px; }
+.tip td { text-align: right; padding: 2px 0 2px 14px; }
+.tip td:first-child, .tip th:first-child { text-align: left; padding-left: 0; }
+.tip tr.total td { border-top: 1px solid var(--line); font-weight: 600; padding-top: 4px; }
+.funnel { margin: 10px 0 8px; }
+.funnel .step { display: grid; grid-template-columns: 120px minmax(0, 1fr) 52px; align-items: center; gap: 8px; font-size: 14px; margin: 8px 0; }
+.funnel .bar { height: 16px; border-radius: 4px; background: var(--dl); }
+.funnel .big-num { font-size: 15px; text-align: right; }
+.feed-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
+.feed-row { display: flex; gap: 8px; align-items: baseline; font-size: 14px; padding: 4px 0; }
+.feed-row .chip { flex-shrink: 0; }
 
 /* Ideas table */
 .table { padding: 0; }
@@ -382,11 +386,6 @@ a.cell-dial:hover { text-decoration: underline; }
 
 /* Small laptop and tablet */
 @media (max-width: 1100px) {
-  .overview-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .tiles, .overview-top > .overview-side { grid-column: 1 / -1; }
-  .overview-side { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-  .overview-bottom { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .overview-bottom > :first-child { grid-column: auto; }
   /* Ideas: text gets the full width; status, date and flags go on a second line. */
   .idea-row {
     grid-template-columns: 48px auto auto minmax(0, 1fr) 44px; grid-template-areas: "v t t t m" "v s meta rep m";
@@ -426,14 +425,8 @@ a.cell-dial:hover { text-decoration: underline; }
   .page-head .seg button { flex: 1 1 0; padding: 0 8px; }
   .tabs { align-self: stretch; overflow: visible; }
   .tabs button { flex: 1 1 auto; padding: 0 6px; font-size: 13px; }
-  .overview-top, .overview-bottom, .tiles, .overview-side { grid-template-columns: minmax(0, 1fr); }
-  .tiles { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-  .tiles, .tile-wide, .overview-bottom > :first-child { grid-column: auto; }
-  .tile.wide, .tile-wide, .tiles-note { grid-column: 1 / -1; }
-  /* Monthly recurring and People on Pro sit side by side as two small cards. */
-  .tile.small { min-height: 0; padding: 14px 16px; }
-  .tile.small .spark-box, .tile.small .spark-empty, .tile.small .axis { display: none; }
-  .tile.small .big-num { font-size: 24px; }
+  .overview { grid-template-columns: minmax(0, 1fr); }
+  .waiting-strip { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .card { padding: 16px; }
   .card.table, .card.flush { padding: 0; }
   .idea-row {
