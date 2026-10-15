@@ -65,4 +65,6 @@ export type Overview = {
   /** `day` marks a whole day's count, which has no time of its own. */
   activity: { kind: 'notWorking' | 'edit' | 'idea' | 'feedback' | 'proJoin' | 'proEnd'; text: string; at: number; day: boolean }[];
   revenue: RevenueChart[];
+  /** The stores' own counts, one row per store and day ("2026-10-08", the store's day), last 40 days. Null until that report is in. */
+  storeDays: { store: 'ios' | 'android'; day: string; downloads: number | null; uninstalls: number | null }[];
 };
