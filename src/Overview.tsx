@@ -130,7 +130,9 @@ function Downloads({ data }: { data: Overview }) {
   const latest = rows.filter((r) => r.downloads !== null).map((r) => r.day).sort().pop();
   const days = appleDays().map((day) => {
     const ios = got('ios', day), and = got('android', day);
-    const wait = ios?.downloads == null && (!android || and?.downloads == null);
+    // Downloads and uninstalls come from separate reports; a day waits only while neither is in.
+    const none = (r?: (typeof rows)[number]) => r?.downloads == null && r?.uninstalls == null;
+    const wait = none(ios) && (!android || none(and));
     return {
       t: noon(day), wait, day, ios, and,
       up: (ios?.downloads ?? 0) + (android ? and?.downloads ?? 0 : 0),
@@ -258,12 +260,13 @@ function Pro({ charts, currency }: { charts: RevenueChart[]; currency: string })
 function Funnel({ data }: { data: Overview }) {
   const android = data.storeDays.some((r) => r.store === 'android' && r.downloads !== null);
   const days = new Set(appleDays());
-  const from = noon([...days][0]);
+  // RevenueCat's days are UTC, Apple's Pacific; matching the date keeps both to the same 30 days.
   const downloads = data.storeDays.filter((r) => days.has(r.day) && (android || r.store === 'ios')).reduce((n, r) => n + (r.downloads ?? 0), 0);
   const fresh = data.revenue.find((c) => c.chart === 'customers_new');
   // RevenueCat sees a phone the first time the app opens; the same stores as the downloads.
-  const opened = sum(series(fresh, /new/i, 0, 'iOS').filter((p) => p.t >= from)) + (android ? sum(series(fresh, /new/i, 0, 'Android').filter((p) => p.t >= from)) : 0);
-  const pro = sum(series(data.revenue.find((c) => c.chart === 'actives_movement'), /^new/i, 0).filter((p) => p.t >= from));
+  const inWindow = (pts: Pt[]) => sum(pts.filter((p) => days.has(isoDay(p.t))));
+  const opened = inWindow(series(fresh, /new/i, 0, 'iOS')) + (android ? inWindow(series(fresh, /new/i, 0, 'Android')) : 0);
+  const pro = inWindow(series(data.revenue.find((c) => c.chart === 'actives_movement'), /^new/i, 0));
   const steps: [string, number][] = [['Downloaded', downloads], ['Opened the app', opened], ['Started Pro', pro]];
   const top = Math.max(1, ...steps.map((s) => s[1]));
   return (
