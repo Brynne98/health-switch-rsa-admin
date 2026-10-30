@@ -30,3 +30,11 @@
 Nothing secret goes in this repo, ever: not the Google client secret, not the
 RevenueCat key, not the owner's email. They live in the Convex environment,
 pasted by Brynne. The Convex URL and Google's client ID are public by design.
+
+# Sign-in
+
+Google only (HSR-139). The server (`app/convex/auth.ts`) refuses any Google
+account whose verified email isn't ADMIN_EMAIL, and `admin.ts` checks again in
+every function. Convex env needs AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET and
+SITE_URL, the bare origin (`http://localhost:5173` on dev,
+`https://brynne98.github.io` on prod); the page adds its base path.

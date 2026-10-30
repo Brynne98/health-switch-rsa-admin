@@ -8,7 +8,7 @@ import { HospitalsPage } from './Hospitals';
 import { IdeasPage } from './Ideas';
 import { NumbersPage } from './Numbers';
 import { OverviewPage } from './Overview';
-import { SignIn } from './SignIn';
+import { SignIn, TRIED } from './SignIn';
 
 export type Page = 'overview' | 'feedback' | 'ideas' | 'numbers' | 'hospitals';
 
@@ -59,6 +59,9 @@ export function App() {
     numbers: overview.reported.count,
     hospitals: overview.hospitalsReported,
   } : {};
+
+  // Signed in, so the next sign-in page is not a return from a refusal.
+  useEffect(() => { if (me?.owner) try { sessionStorage.removeItem(TRIED); } catch {} }, [me?.owner]);
 
   if (isLoading || (isAuthenticated && me === undefined)) return <div className="loading" aria-busy="true" />;
   if (!isAuthenticated || !me?.owner) return <SignIn denied={isAuthenticated && me?.owner === false} onDenied={() => void signOut()} />;
