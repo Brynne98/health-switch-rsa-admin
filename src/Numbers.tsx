@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from 'convex/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { api, type NumberRow, type Numbers } from './api';
 import { Icon } from './App';
@@ -14,8 +14,8 @@ const TABS = {
 type Tab = keyof typeof TABS;
 
 const NOTES: Record<Tab, string> = {
-  added: 'Tap a full number to call it. Edit number: it changes for everyone, and the old one stays in its history. Remove takes it off every phone, for good.',
-  reported: 'Tap a full number to call it. It works: the reports go and it shows as working again. Edit number: it changes for everyone, and the old one stays in its history.',
+  added: 'Tap a full number to call it. In ⋯, Edit number changes it for everyone and keeps the old one in its history; Remove takes it off every phone, for good.',
+  reported: 'Tap a full number to call it. In ⋯, It works clears the reports and shows it as working again; Edit number changes it for everyone and keeps the old one in its history.',
   removed: 'Removed numbers are gone from the app for everyone. A phone drops its copy the next time the app is opened.',
 };
 
@@ -29,6 +29,17 @@ export function NumbersPage({ filter }: { filter: string }) {
   const [editing, setEditing] = useState<NumberRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (menu === null) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.menu-wrap')) setMenu(null);
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', close); };
+  }, [menu]);
 
   const q = query.trim().toLowerCase();
   const digits = q.replace(/\D/g, '');
@@ -46,7 +57,7 @@ export function NumbersPage({ filter }: { filter: string }) {
       <div className="seg tabs" role="group" aria-label="Filter">
         {(Object.keys(TABS) as Tab[]).map((k) => {
           const n = data?.[k].length ?? 0;
-          return <button key={k} aria-pressed={tab === k} onClick={() => setTab(k)}>{TABS[k].label}{n > 0 && <span className="muted"> {n}</span>}</button>;
+          return <button key={k} aria-pressed={tab === k} onClick={() => { setTab(k); setMenu(null); }}>{TABS[k].label}{n > 0 && <span className="muted"> {n}</span>}</button>;
         })}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
@@ -79,20 +90,32 @@ export function NumbersPage({ filter }: { filter: string }) {
                   : r.lastReportedAt !== null && when(r.lastReportedAt)}
               </div>
               <div className="actions">
-                {tab !== 'removed' && <button className="ghost" onClick={() => { setError(null); setEditing(r); }}>Edit number</button>}
-                {tab !== 'removed' && r.count > 0 && (
-                  <button className="ghost" onClick={() => {
-                    if (!confirm(`Mark ${r.name} as working? The reports go and it shows as working again in the app.`)) return;
-                    setError(null);
-                    clear({ entryId: r.entryId }).catch((e) => setError(messageOf(e)));
-                  }}>It works</button>
-                )}
-                {tab === 'added' && (
-                  <button className="ghost danger" onClick={() => {
-                    if (!confirm(`Remove ${r.name} (${r.value}) at ${r.hospital} for good? It goes from every phone the next time the app is opened. This can’t be undone.`)) return;
-                    setError(null);
-                    remove({ entryId: r.entryId }).catch((e) => setError(messageOf(e)));
-                  }}>Remove</button>
+                {tab !== 'removed' && (
+                  <div className="menu-wrap">
+                    <button className="more" aria-label="More actions" aria-expanded={menu === r.entryId} onClick={() => setMenu(menu === r.entryId ? null : r.entryId)}>
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
+                    </button>
+                    {menu === r.entryId && (
+                      <div className="menu" role="menu">
+                        <button role="menuitem" onClick={() => { setMenu(null); setError(null); setEditing(r); }}>Edit number</button>
+                        {r.count > 0 && (
+                          <button role="menuitem" onClick={() => {
+                            setMenu(null);
+                            if (!confirm(`Mark ${r.name} as working? The reports go and it shows as working again in the app.`)) return;
+                            setError(null);
+                            clear({ entryId: r.entryId }).catch((e) => setError(messageOf(e)));
+                          }}>It works</button>
+                        )}
+                        <hr />
+                        <button role="menuitem" className="danger" onClick={() => {
+                          setMenu(null);
+                          if (!confirm(`Remove ${r.name} (${r.value}) at ${r.hospital} for good? It goes from every phone the next time the app is opened. This can’t be undone.`)) return;
+                          setError(null);
+                          remove({ entryId: r.entryId }).catch((e) => setError(messageOf(e)));
+                        }}>Remove</button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
