@@ -67,4 +67,11 @@ export type Overview = {
   revenue: RevenueChart[];
   /** The stores' own counts, one row per store and day ("2026-10-08", the store's day), last 40 days. Null until that report is in. */
   storeDays: { store: 'ios' | 'android'; day: string; downloads: number | null; uninstalls: number | null }[];
+  /** PostHog use (live builds) and Sentry errors (production) per UTC day, last 40 days (HSR-144). Null until that source's key is set. */
+  usageDays: {
+    day: string; users: number | null; dialled: number | null; copied: number | null; noResults: number | null;
+    errors: number | null; crashes: number | null; fetchedAt: number;
+  }[];
+  /** Sentry's five most frequent open issues over 30 days. */
+  errorIssues: { title: string; where: string; events: number; people: number; lastSeen: number; url: string }[];
 };
