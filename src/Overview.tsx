@@ -177,10 +177,20 @@ function Downloads({ data }: { data: Overview }) {
 /** The last 30 whole UTC days, to yesterday: the daily job runs just after midnight UTC. */
 const utcDays = () => Array.from({ length: DAYS }, (_, k) => isoDay(noon(isoDay(Date.now())) - (DAYS - k) * DAY_MS));
 
+/**
+ * A day with no row draws as 0, so a job that has stopped would read as a quiet app. Sentry sends every day,
+ * zeros included; PostHog skips a day with no events, so it gets one day's grace.
+ */
+function staleNote(rows: { day: string }[], grace: number) {
+  const latest = rows.map((r) => r.day).sort().pop() ?? '';
+  return latest < isoDay(Date.now() - (1 + grace) * DAY_MS) ? ` Nothing newer than ${shortDate(noon(latest))}: check the daily job in Convex.` : '';
+}
+
 /** People using the live app each day, and searches that found nothing, from PostHog (HSR-144). */
 function Usage({ data }: { data: Overview }) {
   const rows = data.usageDays.filter((r) => r.users !== null);
   const got = (day: string) => rows.find((r) => r.day === day);
+  const stale = staleNote(rows, 1);
   const days = utcDays().map((day) => {
     const r = got(day);
     return { t: noon(day), wait: false, r, up: r?.users ?? 0, down: r?.noResults ?? 0 };
@@ -206,18 +216,19 @@ function Usage({ data }: { data: Overview }) {
               );
             }}
           />
-          <p className="source">PostHog, live app only. The People total adds up each day, so someone who used it on 3 days counts 3 times. Days end at midnight UTC.</p>
+          <p className={`source ${stale ? 'stale' : ''}`}>PostHog, live app only. The People total adds up each day, so someone who used it on 3 days counts 3 times. Days end at midnight UTC.{stale}</p>
         </>
       )}
     </div>
   );
 }
 
-/** Errors the app caught and crashes it did not, each day, and the issues that happen most, from Sentry (HSR-144). */
+/** Errors and hangs that did not crash the app, and crashes, each day, and the issues that happen most, from Sentry (HSR-144). */
 function Errors({ data }: { data: Overview }) {
   const rows = data.usageDays.filter((r) => r.errors !== null);
   const got = (day: string) => rows.find((r) => r.day === day);
-  // Crashes are errors too; the up side is only the caught ones, so a day's bar adds to its total.
+  const stale = staleNote(rows, 0);
+  // Crashes are errors too; the up side is only the rest, so a day's bar adds to its total.
   const days = utcDays().map((day) => {
     const r = got(day), crashes = r?.crashes ?? 0;
     return { t: noon(day), wait: false, up: (r?.errors ?? 0) - crashes, down: crashes };
@@ -230,8 +241,8 @@ function Errors({ data }: { data: Overview }) {
       ) : (
         <>
           <Mirror
-            days={days} names={['Errors caught', 'Crashes']} label="Errors and crashes" height={150}
-            card={(i) => <table><tbody><tr><td>Errors caught</td><td>{count(days[i].up)}</td></tr><tr><td>Crashes</td><td>{count(days[i].down)}</td></tr></tbody></table>}
+            days={days} names={['Errors and hangs', 'Crashes']} label="Errors and crashes" height={150}
+            card={(i) => <table><tbody><tr><td>Errors and hangs</td><td>{count(days[i].up)}</td></tr><tr><td>Crashes</td><td>{count(days[i].down)}</td></tr></tbody></table>}
           />
           {data.errorIssues.length > 0 && (
             <>
@@ -249,7 +260,7 @@ function Errors({ data }: { data: Overview }) {
               </div>
             </>
           )}
-          <p className="source">Sentry, production only. Days end at midnight UTC.</p>
+          <p className={`source ${stale ? 'stale' : ''}`}>Sentry, production only. Errors and hangs did not close the app; crashes did. Days end at midnight UTC.{stale}</p>
         </>
       )}
     </div>
