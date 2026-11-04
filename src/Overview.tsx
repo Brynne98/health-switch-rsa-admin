@@ -315,7 +315,7 @@ function Latest({ activity }: { activity: Overview['activity'] }) {
 export function OverviewPage() {
   const data = useQuery(api.admin.overview) as Overview | undefined;
   const todo = data ? [
-    { count: data.reported.count, title: 'numbers not working', go: 'Review', href: '#/numbers' },
+    { count: data.reported.count, title: 'numbers not working', go: 'Review', href: '#/numbers/reported' },
     { count: data.ideas.noStatus, title: 'ideas with no status', go: 'Review', href: '#/ideas' },
     { count: data.feedback.lastWeek, title: 'new feedback this week', go: 'Read', href: '#/feedback' },
     { count: data.ideas.hiddenByReports, title: 'ideas hidden by flags', go: 'Check', href: '#/ideas/hidden' },

@@ -21,14 +21,21 @@ export type Idea = {
 
 export type Feedback = { id: string; text: string; createdAt: number };
 
-export type Reported = {
+/** A row on the Numbers page. `count` is its current "Not working" reports. */
+export type NumberRow = {
   entryId: number;
   name: string;
   value: string;
   hospital: string;
   count: number;
-  lastReportedAt: number;
+  lastReportedAt: number | null;
+  /** Not on reported rows. */
+  fromPhone?: boolean;
+  addedAt?: number;
+  removedAt?: number | null;
 };
+
+export type Numbers = { added: NumberRow[]; reported: NumberRow[]; removed: NumberRow[] };
 
 export type Hospital = {
   id: number;
