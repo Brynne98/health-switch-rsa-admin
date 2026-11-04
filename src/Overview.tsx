@@ -174,6 +174,99 @@ function Downloads({ data }: { data: Overview }) {
   );
 }
 
+/** The last 30 whole UTC days, to yesterday: the daily job runs just after midnight UTC. */
+const utcDays = () => Array.from({ length: DAYS }, (_, k) => isoDay(noon(isoDay(Date.now())) - (DAYS - k) * DAY_MS));
+
+/**
+ * A day with no row draws as 0, so a job that has stopped would read as a quiet app. Sentry sends every day,
+ * zeros included; PostHog skips a day with no events, so it gets one day's grace.
+ */
+function staleNote(rows: { day: string }[], grace: number) {
+  const latest = rows.map((r) => r.day).sort().pop() ?? '';
+  return latest < isoDay(Date.now() - (1 + grace) * DAY_MS) ? ` Nothing newer than ${shortDate(noon(latest))}: check the daily job in Convex.` : '';
+}
+
+/** People using the live app each day, and searches that found nothing, from PostHog (HSR-144). */
+function Usage({ data }: { data: Overview }) {
+  const rows = data.usageDays.filter((r) => r.users !== null);
+  const got = (day: string) => rows.find((r) => r.day === day);
+  const stale = staleNote(rows, 1);
+  const days = utcDays().map((day) => {
+    const r = got(day);
+    return { t: noon(day), wait: false, r, up: r?.users ?? 0, down: r?.noResults ?? 0 };
+  });
+  return (
+    <div className="card wide">
+      <div className="h2">People using the app, each day</div>
+      {!rows.length ? (
+        <p className="muted">No numbers from PostHog yet. They update once a day; if this stays empty, check POSTHOG_API_KEY in Convex.</p>
+      ) : (
+        <>
+          <Mirror
+            days={days} names={['People', 'Searches that found nothing']} label="People using the app"
+            card={(i) => {
+              const r = days[i].r;
+              return (
+                <table><tbody>
+                  <tr><td>People</td><td>{count(r?.users ?? 0)}</td></tr>
+                  <tr><td>Numbers dialled</td><td>{count(r?.dialled ?? 0)}</td></tr>
+                  <tr><td>Numbers copied</td><td>{count(r?.copied ?? 0)}</td></tr>
+                  <tr><td>Searches that found nothing</td><td>{count(r?.noResults ?? 0)}</td></tr>
+                </tbody></table>
+              );
+            }}
+          />
+          <p className={`source ${stale ? 'stale' : ''}`}>PostHog, live app only. The People total adds up each day, so someone who used it on 3 days counts 3 times. Days end at midnight UTC.{stale}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Errors and hangs that did not crash the app, and crashes, each day, and the issues that happen most, from Sentry (HSR-144). */
+function Errors({ data }: { data: Overview }) {
+  const rows = data.usageDays.filter((r) => r.errors !== null);
+  const got = (day: string) => rows.find((r) => r.day === day);
+  const stale = staleNote(rows, 0);
+  // Crashes are errors too; the up side is only the rest, so a day's bar adds to its total.
+  const days = utcDays().map((day) => {
+    const r = got(day), crashes = r?.crashes ?? 0;
+    return { t: noon(day), wait: false, up: (r?.errors ?? 0) - crashes, down: crashes };
+  });
+  return (
+    <div className="card wide">
+      <div className="h2">Errors and crashes, each day</div>
+      {!rows.length ? (
+        <p className="muted">No numbers from Sentry yet. They update once a day; if this stays empty, check SENTRY_AUTH_TOKEN in Convex.</p>
+      ) : (
+        <>
+          <Mirror
+            days={days} names={['Errors and hangs', 'Crashes']} label="Errors and crashes" height={150}
+            card={(i) => <table><tbody><tr><td>Errors and hangs</td><td>{count(days[i].up)}</td></tr><tr><td>Crashes</td><td>{count(days[i].down)}</td></tr></tbody></table>}
+          />
+          {data.errorIssues.length > 0 && (
+            <>
+              <div className="tile-label" style={{ marginTop: 14 }}>Happens most, last 30 days</div>
+              <div className="feed">
+                {data.errorIssues.map((i) => (
+                  <div key={i.url} className="feed-row">
+                    <span className="chip quiet">{count(i.events)}×</span>
+                    <span className="clamp">
+                      <a href={i.url} target="_blank" rel="noreferrer">{i.title}</a>
+                      <span className="lbl"> · {i.people === 1 ? '1 person' : `${count(i.people)} people`} · last {shortDate(i.lastSeen)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <p className={`source ${stale ? 'stale' : ''}`}>Sentry, production only. Errors and hangs did not close the app; crashes did. Days end at midnight UTC.{stale}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Pro joins (new and back again) and endings each day, from RevenueCat's movement chart. */
 function ProMoves({ charts }: { charts: RevenueChart[] }) {
   const moves = charts.find((c) => c.chart === 'actives_movement');
@@ -363,6 +456,8 @@ export function OverviewPage() {
           <ProMoves charts={charts} />
           <Funnel data={data} />
           <Latest activity={data.activity} />
+          <Usage data={data} />
+          <Errors data={data} />
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>
               Money and Pro from RevenueCat, in {currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
