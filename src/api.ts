@@ -74,6 +74,8 @@ export type Overview = {
   revenue: RevenueChart[];
   /** The stores' own counts, one row per store and day ("2026-10-08", the store's day), last 40 days. Null until that report is in. */
   storeDays: { store: 'ios' | 'android'; day: string; downloads: number | null; uninstalls: number | null }[];
+  /** Every stored day of both stores added up. */
+  downloadsSinceLaunch: number;
   /** PostHog use (live builds) and Sentry errors (production) per UTC day, last 40 days (HSR-144). Null until that source's key is set. */
   usageDays: {
     day: string; users: number | null; dialled: number | null; copied: number | null; noResults: number | null;

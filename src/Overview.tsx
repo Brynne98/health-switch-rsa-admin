@@ -350,11 +350,29 @@ function Pro({ charts, currency }: { charts: RevenueChart[]; currency: string })
 }
 
 /** Downloads in the last 30 days, how many of those phones opened the app, and how many started Pro. */
-function Funnel({ data }: { data: Overview }) {
+/** Downloads over the chart's 30 days; Android counts once it has data. */
+function lastDays(data: Overview) {
   const android = data.storeDays.some((r) => r.store === 'android' && r.downloads !== null);
   const days = new Set(appleDays());
-  // RevenueCat's days are UTC, Apple's Pacific; matching the date keeps both to the same 30 days.
   const downloads = data.storeDays.filter((r) => days.has(r.day) && (android || r.store === 'ios')).reduce((n, r) => n + (r.downloads ?? 0), 0);
+  return { android, days, downloads };
+}
+
+/** Downloads since launch, with the last 30 days under it (HSR-160). */
+function DownloadTotals({ data }: { data: Overview }) {
+  return (
+    <div className="card">
+      <div className="tile-label">Downloads since launch</div>
+      <div className="big-num">{count(data.downloadsSinceLaunch)}</div>
+      <div className="tile-label" style={{ marginTop: 14 }}>Last 30 days</div>
+      <div className="big-num">{count(lastDays(data).downloads)}</div>
+    </div>
+  );
+}
+
+function Funnel({ data }: { data: Overview }) {
+  // RevenueCat's days are UTC, Apple's Pacific; matching the date keeps both to the same 30 days.
+  const { android, days, downloads } = lastDays(data);
   const fresh = data.revenue.find((c) => c.chart === 'customers_new');
   // RevenueCat sees a phone the first time the app opens; the same stores as the downloads.
   const inWindow = (pts: Pt[]) => sum(pts.filter((p) => days.has(isoDay(p.t))));
@@ -387,7 +405,7 @@ function Latest({ activity }: { activity: Overview['activity'] }) {
     groups[groups.length - 1].items.push(a);
   }
   return (
-    <div className="card">
+    <div className="card wide">
       <div className="tile-label">Latest in the app</div>
       {activity.length === 0 && <p className="muted">Nothing yet.</p>}
       {groups.map((g) => (
@@ -441,6 +459,7 @@ export function OverviewPage() {
               ))}
             </div>
           </div>
+          <h2 className="section">Money</h2>
           {charts.length === 0 ? (
             <div className="card wide">
               <div className="h2">Revenue</div>
@@ -452,17 +471,21 @@ export function OverviewPage() {
               <Pro charts={charts} currency={currency} />
             </>
           )}
-          <Downloads data={data} />
           <ProMoves charts={charts} />
-          <Funnel data={data} />
-          <Latest activity={data.activity} />
-          <Usage data={data} />
-          <Errors data={data} />
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>
               Money and Pro from RevenueCat, in {currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
             </p>
           )}
+          <h2 className="section">Downloads</h2>
+          <DownloadTotals data={data} />
+          <Funnel data={data} />
+          <Downloads data={data} />
+          <h2 className="section">App use and errors</h2>
+          <Usage data={data} />
+          <Errors data={data} />
+          <h2 className="section">Latest</h2>
+          <Latest activity={data.activity} />
         </div>
       )}
     </>
