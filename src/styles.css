@@ -172,6 +172,9 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .overview { align-items: stretch; }
 .overview > .card { display: flex; flex-direction: column; }
 .overview > .card > .legend-buttons, .overview > .card > svg.weekly { margin-top: auto; }
+/* Top: 2x2 totals, Latest beside them at the same height (HSR-162). */
+.top-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .overview > .section { grid-column: 1 / -1; margin: 16px 0 -4px; font-size: 20px; font-weight: 700; }
 .tile-label { font-weight: 600; font-size: 14px; color: var(--muted); }
 .big-num { font-size: 32px; font-weight: 700; letter-spacing: -0.3px; }
@@ -179,12 +182,6 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .source.stale { color: var(--red); font-weight: 600; }
 .ink { color: var(--ink); }
 .lbl.gap { margin-top: 10px; }
-.waiting-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-.waiting-item { border-radius: 10px; padding: 10px 12px; background: var(--bg); }
-.waiting-item .big-num { font-size: 22px; }
-.waiting-item.hot { background: var(--red-soft); }
-.waiting-item.hot .big-num { color: var(--red-ink); }
-.waiting-item a { font-size: 14px; font-weight: 600; display: inline-block; padding: 6px 0 0; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
 .legend > span { display: flex; align-items: center; gap: 6px; }
 .key { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
@@ -431,7 +428,7 @@ a.cell-dial:hover { text-decoration: underline; }
   .tabs { align-self: stretch; overflow: visible; }
   .tabs button { flex: 1 1 auto; padding: 0 6px; font-size: 13px; }
   .overview { grid-template-columns: minmax(0, 1fr); }
-  .waiting-strip { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .top-row { grid-template-columns: minmax(0, 1fr); }
   .card { padding: 16px; }
   .card.table, .card.flush { padding: 0; }
   .idea-row {

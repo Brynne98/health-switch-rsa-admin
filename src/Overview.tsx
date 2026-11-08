@@ -372,14 +372,12 @@ function lastDays(data: Overview) {
   return { android, days, downloads };
 }
 
-/** Downloads since launch, with the last 30 days under it (HSR-160). */
-function DownloadTotals({ data }: { data: Overview }) {
+/** One number with its label, for the top grid (HSR-162). */
+function Tile({ label, value }: { label: string; value: string }) {
   return (
     <div className="card">
-      <div className="tile-label">Downloads since launch</div>
-      <div className="big-num">{count(data.downloadsSinceLaunch)}</div>
-      <div className="tile-label" style={{ marginTop: 14 }}>Last 30 days</div>
-      <div className="big-num">{count(lastDays(data).downloads)}</div>
+      <div className="tile-label">{label}</div>
+      <div className="big-num">{value}</div>
     </div>
   );
 }
@@ -395,7 +393,7 @@ function Funnel({ data }: { data: Overview }) {
   const steps: [string, number][] = [['Downloaded', downloads], ['Opened the app', opened], ['Started Pro', pro]];
   const top = Math.max(1, ...steps.map((s) => s[1]));
   return (
-    <div className="card">
+    <div className="card wide">
       <div className="tile-label">From download to Pro, last 30 days</div>
       <div className="funnel">
         {steps.map(([name, v]) => (
@@ -419,7 +417,7 @@ function Latest({ activity }: { activity: Overview['activity'] }) {
     groups[groups.length - 1].items.push(a);
   }
   return (
-    <div className="card wide">
+    <div className="card">
       <div className="tile-label">Latest in the app</div>
       {activity.length === 0 && <p className="muted">Nothing yet.</p>}
       {groups.map((g) => (
@@ -439,12 +437,6 @@ function Latest({ activity }: { activity: Overview['activity'] }) {
 
 export function OverviewPage() {
   const data = useQuery(api.admin.overview) as Overview | undefined;
-  const todo = data ? [
-    { count: data.reported.count, title: 'numbers not working', go: 'Review', href: '#/numbers/reported' },
-    { count: data.ideas.noStatus, title: 'ideas with no status', go: 'Review', href: '#/ideas' },
-    { count: data.feedback.lastWeek, title: 'new feedback this week', go: 'Read', href: '#/feedback' },
-    { count: data.ideas.hiddenByReports, title: 'ideas hidden by flags', go: 'Check', href: '#/ideas/hidden' },
-  ] : [];
   const charts = data?.revenue ?? [];
   const currency = charts.find((c) => c.currency)?.currency ?? 'USD';
   const updated = charts.length ? Math.max(...charts.map((c) => c.fetchedAt)) : 0;
@@ -461,17 +453,14 @@ export function OverviewPage() {
       </header>
       {!data ? <div className="loading" aria-busy="true" /> : (
         <div className="overview">
-          <div className="card wide">
-            <div className="tile-label">Waiting on you</div>
-            <div className="waiting-strip">
-              {todo.map((t) => (
-                <div key={t.title} className={`waiting-item ${t.count ? 'hot' : ''}`}>
-                  <div className="big-num">{t.count}</div>
-                  <div className="lbl">{t.title}</div>
-                  {t.count > 0 && <a href={t.href}>{t.go}</a>}
-                </div>
-              ))}
+          <div className="top-row wide">
+            <div className="totals">
+              <Tile label="Downloads since launch" value={count(data.downloadsSinceLaunch)} />
+              <Tile label="Downloads, last 30 days" value={count(lastDays(data).downloads)} />
+              <YouGet charts={charts} currency={currency} />
+              <Pro charts={charts} currency={currency} />
             </div>
+            <Latest activity={data.activity} />
           </div>
           <h2 className="section">Money</h2>
           {charts.length === 0 ? (
@@ -481,8 +470,6 @@ export function OverviewPage() {
             </div>
           ) : (
             <>
-              <YouGet charts={charts} currency={currency} />
-              <Pro charts={charts} currency={currency} />
               <Weekly charts={charts} currency={currency} />
               <ProMoves charts={charts} />
             </>
@@ -493,14 +480,11 @@ export function OverviewPage() {
             </p>
           )}
           <h2 className="section">Downloads</h2>
-          <DownloadTotals data={data} />
           <Funnel data={data} />
           <Downloads data={data} />
           <h2 className="section">App use and errors</h2>
           <Usage data={data} />
           <Errors data={data} />
-          <h2 className="section">Latest</h2>
-          <Latest activity={data.activity} />
         </div>
       )}
     </>
