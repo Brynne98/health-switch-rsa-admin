@@ -283,11 +283,11 @@ function ProMoves({ charts }: { charts: RevenueChart[] }) {
   const today = Date.parse(new Date().toISOString().slice(0, 10));
   const days = Array.from({ length: DAYS }, (_, k) => today - (DAYS - 1 - k) * DAY_MS).map((t) => ({ t, wait: false, ...(byDay.get(t) ?? { up: 0, down: 0 }) }));
   return (
-    <div className="card wide">
+    <div className="card">
       <div className="h2">Pro started and ended, each day</div>
       {!moves ? <p className="muted">No data from RevenueCat yet.</p> : (
         <Mirror
-          days={days} names={['Started', 'Ended']} label="Pro started and ended" height={150}
+          days={days} names={['Started', 'Ended']} label="Pro started and ended" height={190}
           card={(i) => <table><tbody><tr><td>Started</td><td>{days[i].up}</td></tr><tr><td>Ended</td><td>{days[i].down}</td></tr></tbody></table>}
         />
       )}
@@ -295,23 +295,37 @@ function ProMoves({ charts }: { charts: RevenueChart[] }) {
   );
 }
 
+/** Revenue by week (Monday start), the last 9 weeks, and the 4 whole weeks before this one. */
+function weeks(charts: RevenueChart[]) {
+  const daily = series(charts.find((c) => c.chart === 'revenue'), /revenue|proceeds/i);
+  const monday = (t: number) => t - ((new Date(t).getUTCDay() + 6) % 7) * DAY_MS;
+  const byWeek = new Map<number, number>();
+  daily.forEach((p) => byWeek.set(monday(p.t), (byWeek.get(monday(p.t)) ?? 0) + p.v));
+  const now = monday(Date.parse(new Date().toISOString().slice(0, 10)));
+  return {
+    cols: [...byWeek].sort((a, b) => a[0] - b[0]).slice(-9), now,
+    fourWeeks: sum(daily.filter((p) => p.t >= now - 28 * DAY_MS && p.t < now)),
+  };
+}
+
+function YouGet({ charts, currency }: { charts: RevenueChart[]; currency: string }) {
+  return (
+    <div className="card">
+      <div className="tile-label">You get</div>
+      <div className="big-num">{money(weeks(charts).fourWeeks, currency)}</div>
+      <div className="lbl">last 4 weeks, after VAT and Apple’s cut</div>
+    </div>
+  );
+}
+
 /** What Pro brings in each week, the amount on every bar. The week still running is an outline. */
 function Weekly({ charts, currency }: { charts: RevenueChart[]; currency: string }) {
-  const daily = series(charts.find((c) => c.chart === 'revenue'), /revenue|proceeds/i);
-  // Weeks start on Monday.
-  const monday = (t: number) => t - ((new Date(t).getUTCDay() + 6) % 7) * DAY_MS;
-  const weeks = new Map<number, number>();
-  daily.forEach((p) => weeks.set(monday(p.t), (weeks.get(monday(p.t)) ?? 0) + p.v));
-  const cols = [...weeks].sort((a, b) => a[0] - b[0]).slice(-9);
-  const now = monday(Date.parse(new Date().toISOString().slice(0, 10)));
-  const fourWeeks = sum(daily.filter((p) => p.t >= now - 28 * DAY_MS && p.t < now));
+  const { cols, now } = weeks(charts);
   const W = 330, h = 150, padB = 18, top = 16, max = Math.max(1, ...cols.map((c) => c[1]));
   const bw = W / Math.max(cols.length, 1), gap = bw * 0.3, w = bw - gap;
   return (
     <div className="card">
-      <div className="tile-label">You get, each week</div>
-      <div className="big-num">{money(fourWeeks, currency)}</div>
-      <div className="lbl">last 4 weeks, after VAT and Apple’s cut</div>
+      <div className="h2">You get, each week</div>
       <svg className="weekly" viewBox={`0 0 ${W} ${h}`} role="img" aria-label={cols.map(([t, v]) => `week of ${shortDate(t)}: ${money(v, currency)}`).join(', ')}>
         <line className="zero" x1={0} x2={W} y1={h - padB} y2={h - padB} />
         {cols.map(([t, v], i) => {
@@ -350,11 +364,29 @@ function Pro({ charts, currency }: { charts: RevenueChart[]; currency: string })
 }
 
 /** Downloads in the last 30 days, how many of those phones opened the app, and how many started Pro. */
-function Funnel({ data }: { data: Overview }) {
+/** Downloads over the chart's 30 days; Android counts once it has data. */
+function lastDays(data: Overview) {
   const android = data.storeDays.some((r) => r.store === 'android' && r.downloads !== null);
   const days = new Set(appleDays());
-  // RevenueCat's days are UTC, Apple's Pacific; matching the date keeps both to the same 30 days.
   const downloads = data.storeDays.filter((r) => days.has(r.day) && (android || r.store === 'ios')).reduce((n, r) => n + (r.downloads ?? 0), 0);
+  return { android, days, downloads };
+}
+
+/** Downloads since launch, with the last 30 days under it (HSR-160). */
+function DownloadTotals({ data }: { data: Overview }) {
+  return (
+    <div className="card">
+      <div className="tile-label">Downloads since launch</div>
+      <div className="big-num">{count(data.downloadsSinceLaunch)}</div>
+      <div className="tile-label" style={{ marginTop: 14 }}>Last 30 days</div>
+      <div className="big-num">{count(lastDays(data).downloads)}</div>
+    </div>
+  );
+}
+
+function Funnel({ data }: { data: Overview }) {
+  // RevenueCat's days are UTC, Apple's Pacific; matching the date keeps both to the same 30 days.
+  const { android, days, downloads } = lastDays(data);
   const fresh = data.revenue.find((c) => c.chart === 'customers_new');
   // RevenueCat sees a phone the first time the app opens; the same stores as the downloads.
   const inWindow = (pts: Pt[]) => sum(pts.filter((p) => days.has(isoDay(p.t))));
@@ -387,7 +419,7 @@ function Latest({ activity }: { activity: Overview['activity'] }) {
     groups[groups.length - 1].items.push(a);
   }
   return (
-    <div className="card">
+    <div className="card wide">
       <div className="tile-label">Latest in the app</div>
       {activity.length === 0 && <p className="muted">Nothing yet.</p>}
       {groups.map((g) => (
@@ -441,6 +473,7 @@ export function OverviewPage() {
               ))}
             </div>
           </div>
+          <h2 className="section">Money</h2>
           {charts.length === 0 ? (
             <div className="card wide">
               <div className="h2">Revenue</div>
@@ -448,21 +481,26 @@ export function OverviewPage() {
             </div>
           ) : (
             <>
-              <Weekly charts={charts} currency={currency} />
+              <YouGet charts={charts} currency={currency} />
               <Pro charts={charts} currency={currency} />
+              <Weekly charts={charts} currency={currency} />
+              <ProMoves charts={charts} />
             </>
           )}
-          <Downloads data={data} />
-          <ProMoves charts={charts} />
-          <Funnel data={data} />
-          <Latest activity={data.activity} />
-          <Usage data={data} />
-          <Errors data={data} />
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>
               Money and Pro from RevenueCat, in {currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
             </p>
           )}
+          <h2 className="section">Downloads</h2>
+          <DownloadTotals data={data} />
+          <Funnel data={data} />
+          <Downloads data={data} />
+          <h2 className="section">App use and errors</h2>
+          <Usage data={data} />
+          <Errors data={data} />
+          <h2 className="section">Latest</h2>
+          <Latest activity={data.activity} />
         </div>
       )}
     </>
