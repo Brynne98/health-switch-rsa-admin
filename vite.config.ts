@@ -1,8 +1,7 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-// Served from GitHub Pages at /health-switch-rsa-admin/.
+// Served from Cloudflare Pages at https://admin.healthswitch.co.za/ (HSR-161).
 export default defineConfig({
-  base: '/health-switch-rsa-admin/',
   plugins: [react()],
 });

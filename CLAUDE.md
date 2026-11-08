@@ -19,7 +19,9 @@
 
 # Releasing
 
-- **Frontend:** GitHub Pages, built on every push to `main`.
+- **Frontend:** Cloudflare Pages project `health-switch-admin`, built on every
+  push to `main` (`npm run build`, output `dist`). Served at
+  https://admin.healthswitch.co.za (HSR-161). Was GitHub Pages until 8 Nov 2026.
 - **Backend:** the admin functions ship with the app repo's
   `./build-and-submit.sh --check` (dev, then prod).
 - Never merge, push or deploy without Brynne's say-so, every time. Commits on
@@ -37,4 +39,4 @@ Google only (HSR-139). The server (`app/convex/auth.ts`) refuses any Google
 account whose verified email isn't ADMIN_EMAIL, and `admin.ts` checks again in
 every function. Convex env needs AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET and
 SITE_URL, the bare origin (`http://localhost:5173` on dev,
-`https://brynne98.github.io` on prod); the page adds its base path.
+`https://admin.healthswitch.co.za` on prod).
