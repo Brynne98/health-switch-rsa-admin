@@ -127,9 +127,10 @@ function Downloads({ data }: { data: Overview }) {
   const rows = data.storeDays;
   const android = rows.some((r) => r.store === 'android' && r.downloads !== null);
   const got = (store: 'ios' | 'android', day: string) => rows.find((r) => r.store === store && r.day === day);
-  const latest = rows.filter((r) => r.downloads !== null).map((r) => r.day).sort().pop();
+  const counted = rows.filter((r) => r.downloads !== null);
+  const latest = counted.map((r) => r.day).sort().pop();
   // Apple's reports land 1 to 2 days late, so the daily job gets 3 days before it reads as stopped.
-  const stale = staleNote(rows.filter((r) => r.downloads !== null), 3);
+  const stale = staleNote(counted, 3);
   const days = appleDays().map((day) => {
     const ios = got('ios', day), and = got('android', day);
     // Downloads and uninstalls come from separate reports; a day waits only while neither is in.
