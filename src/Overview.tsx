@@ -128,6 +128,8 @@ function Downloads({ data }: { data: Overview }) {
   const android = rows.some((r) => r.store === 'android' && r.downloads !== null);
   const got = (store: 'ios' | 'android', day: string) => rows.find((r) => r.store === store && r.day === day);
   const latest = rows.filter((r) => r.downloads !== null).map((r) => r.day).sort().pop();
+  // Apple's reports land 1 to 2 days late, so the daily job gets 3 days before it reads as stopped.
+  const stale = staleNote(rows.filter((r) => r.downloads !== null), 3);
   const days = appleDays().map((day) => {
     const ios = got('ios', day), and = got('android', day);
     // Downloads and uninstalls come from separate reports; a day waits only while neither is in.
@@ -165,8 +167,8 @@ function Downloads({ data }: { data: Overview }) {
               );
             }}
           />
-          <p className="source">
-            {android ? 'App Store and Google Play' : 'App Store'}, up to {shortDate(noon(latest))}. Apple ends each day at midnight US Pacific time, and only counts uninstalls from people who share data with it, so uninstalls read low.
+          <p className={`source ${stale ? 'stale' : ''}`}>
+            {android ? 'App Store and Google Play' : 'App Store'}, up to {shortDate(noon(latest))}. Apple ends each day at midnight US Pacific time, and only counts uninstalls from people who share data with it, so uninstalls read low.{stale}
           </p>
         </>
       )}
