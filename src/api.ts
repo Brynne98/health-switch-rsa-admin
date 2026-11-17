@@ -81,6 +81,15 @@ export type Overview = {
     day: string; users: number | null; dialled: number | null; copied: number | null; noResults: number | null;
     errors: number | null; crashes: number | null; fetchedAt: number;
   }[];
+  /**
+   * Per healthswitch.co.za/get?from= source, since its first click (HSR-171).
+   * `appleEstimate`: App Store downloads on days the source had iPhone clicks,
+   * capped at those clicks. Android installs and Pro are exact.
+   */
+  campaigns: {
+    source: string; firstDay: string; clicksIos: number; clicksAndroid: number; clicksOther: number;
+    appleEstimate: number; androidInstalls: number; androidPro: number;
+  }[];
   /** Sentry's five most frequent open issues over 30 days. */
   errorIssues: { title: string; where: string; events: number; people: number; lastSeen: number; url: string }[];
 };

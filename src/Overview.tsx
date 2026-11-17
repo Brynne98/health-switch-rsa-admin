@@ -270,6 +270,46 @@ function Errors({ data }: { data: Overview }) {
   );
 }
 
+/** Clicks on each healthswitch.co.za/get?from= link, then downloads by store, then Pro (HSR-171). */
+function Campaigns({ data }: { data: Overview }) {
+  const rows = data.campaigns ?? [];
+  return (
+    <div className="card wide">
+      <div className="h2">Links and ads</div>
+      {!rows.length ? (
+        <p className="muted">No clicks on a healthswitch.co.za/get link yet.</p>
+      ) : (
+        <>
+          <div className="scroll-x">
+            <table className="campaigns">
+              <thead>
+                <tr><th>Link</th><th>Clicks</th><th>iPhone</th><th>Android</th><th>Computer</th><th>App Store downloads</th><th>Play installs</th><th>Pro</th></tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.source}>
+                    <td>{r.source}<span className="lbl"> · since {shortDate(noon(r.firstDay))}</span></td>
+                    <td>{count(r.clicksIos + r.clicksAndroid + r.clicksOther)}</td>
+                    <td>{count(r.clicksIos)}</td>
+                    <td>{count(r.clicksAndroid)}</td>
+                    <td>{count(r.clicksOther)}</td>
+                    <td>{r.clicksIos ? `up to ${count(r.appleEstimate)}` : '–'}</td>
+                    <td>{count(r.androidInstalls)}</td>
+                    <td>{count(r.androidPro)}<span className="lbl"> Android</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="source">
+            Clicks from the link itself, test links left out. App Store downloads are an estimate: Apple never says which link an install came from, so this counts downloads on the days that link had iPhone clicks. Play installs and Pro are exact, for Android phones on the update that reads the install link.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Pro joins (new and back again) and endings each day, from RevenueCat's movement chart. */
 function ProMoves({ charts }: { charts: RevenueChart[] }) {
   const moves = charts.find((c) => c.chart === 'actives_movement');
@@ -485,6 +525,7 @@ export function OverviewPage() {
           <h2 className="section">Downloads</h2>
           <Funnel data={data} />
           <Downloads data={data} />
+          <Campaigns data={data} />
           <h2 className="section">App use and errors</h2>
           <Usage data={data} />
           <Errors data={data} />
