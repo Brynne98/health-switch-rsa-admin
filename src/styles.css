@@ -237,10 +237,6 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .campaigns th { font-weight: 500; color: var(--muted); font-size: 12px; text-align: right; padding: 0 0 6px 16px; white-space: nowrap; }
 .campaigns td { text-align: right; padding: 8px 0 8px 16px; border-top: 1px solid var(--line); white-space: nowrap; }
 .campaigns td:first-child, .campaigns th:first-child { text-align: left; padding-left: 0; }
-.funnel { margin: 10px 0 8px; }
-.funnel .step { display: grid; grid-template-columns: 120px minmax(0, 1fr) 52px; align-items: center; gap: 8px; font-size: 14px; margin: 8px 0; }
-.funnel .bar { height: 16px; border-radius: 4px; background: var(--dl); }
-.funnel .big-num { font-size: 15px; text-align: right; }
 .feed-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
 .feed-row { display: flex; gap: 8px; align-items: baseline; font-size: 14px; padding: 4px 0; }
 .feed-row .chip { flex-shrink: 0; }

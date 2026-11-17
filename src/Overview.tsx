@@ -425,29 +425,6 @@ function Tile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Funnel({ data }: { data: Overview }) {
-  // RevenueCat's days are UTC, Apple's Pacific; matching the date keeps both to the same 30 days.
-  const { android, days, downloads } = lastDays(data);
-  const fresh = data.revenue.find((c) => c.chart === 'customers_new');
-  // RevenueCat sees a phone the first time the app opens; the same stores as the downloads.
-  const inWindow = (pts: Pt[]) => sum(pts.filter((p) => days.has(isoDay(p.t))));
-  const opened = inWindow(series(fresh, /new/i, 0, 'iOS')) + (android ? inWindow(series(fresh, /new/i, 0, 'Android')) : 0);
-  const pro = inWindow(series(data.revenue.find((c) => c.chart === 'actives_movement'), /^new/i, 0));
-  const steps: [string, number][] = [['Downloaded', downloads], ['Opened the app', opened], ['Started Pro', pro]];
-  const top = Math.max(1, ...steps.map((s) => s[1]));
-  return (
-    <div className="card wide">
-      <div className="tile-label">From download to Pro, last 30 days</div>
-      <div className="funnel">
-        {steps.map(([name, v]) => (
-          <div key={name} className="step"><span>{name}</span><div className="bar" style={{ width: `${Math.max(2, (v / top) * 100)}%` }} /><span className="big-num">{count(v)}</span></div>
-        ))}
-      </div>
-      {downloads > 0 && pro > 0 && <div className="lbl">1 in {Math.round(downloads / pro)} downloads goes Pro</div>}
-    </div>
-  );
-}
-
 const KIND: Record<Overview['activity'][number]['kind'], [string, string]> = {
   notWorking: ['Not working', 'bad'], edit: ['Edit', ''], idea: ['Idea', ''], feedback: ['Feedback', ''], proJoin: ['Pro', 'good'], proEnd: ['Left Pro', ''],
 };
@@ -523,7 +500,6 @@ export function OverviewPage() {
             </p>
           )}
           <h2 className="section">Downloads</h2>
-          <Funnel data={data} />
           <Downloads data={data} />
           <Campaigns data={data} />
           <h2 className="section">App use and errors</h2>
