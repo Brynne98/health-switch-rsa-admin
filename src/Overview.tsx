@@ -45,13 +45,15 @@ type Day = { t: number; up: number; up2?: number; down: number; wait: boolean };
  * at a day, or tapping it on a phone, opens its card beside the bar.
  */
 function Mirror({ days, names, parts, card, label, height = 230 }: {
-  days: Day[]; names: [string, string]; parts?: [string, string]; card: (i: number) => ReactNode; label: string; height?: number;
+  days: Day[]; names: [string] | [string, string]; parts?: [string, string]; card: (i: number) => ReactNode; label: string; height?: number;
 }) {
   const [show, setShow] = useState([true, true]);
   const [at, setAt] = useState<number | null>(null);
   const W = 680, padB = 4, top = 10, n = days.length;
-  const val = (d: Day, side: 0 | 1) => (show[side] ? (side ? d.down : d.up) : 0);
-  const maxU = Math.max(1, ...days.map((d) => val(d, 0))), maxD = Math.max(1, ...days.map((d) => val(d, 1)));
+  // One name: only bars above the line, using the whole height (HSR-174).
+  const two = names.length > 1;
+  const val = (d: Day, side: 0 | 1) => (show[side] ? (side ? (two ? d.down : 0) : d.up) : 0);
+  const maxU = Math.max(1, ...days.map((d) => val(d, 0))), maxD = two ? Math.max(1, ...days.map((d) => val(d, 1))) : 0;
   const plotH = height - top - padB, span = maxU + maxD, zero = top + plotH * (maxU / span), y = (v: number) => (v / span) * plotH;
   const bw = W / n, gap = Math.max(2, bw * 0.25), w = bw - gap;
   const step = maxU <= 4 ? 1 : maxU <= 25 ? 5 : 10 * Math.ceil(maxU / 40);
@@ -216,7 +218,7 @@ function Usage({ data }: { data: Overview }) {
   const stale = staleNote(rows.map((r) => r.posthogAt));
   const days = utcDays().map((day) => {
     const r = got(day);
-    return { t: noon(day), wait: false, r, up: r?.users ?? 0, down: r?.noResults ?? 0 };
+    return { t: noon(day), wait: false, r, up: r?.users ?? 0, down: 0 };
   });
   return (
     <div className="card wide">
@@ -226,7 +228,7 @@ function Usage({ data }: { data: Overview }) {
       ) : (
         <>
           <Mirror
-            days={days} names={['People', 'Searches that found nothing']} label="People using the app"
+            days={days} names={['People']} label="People using the app"
             card={(i) => {
               const r = days[i].r;
               return (
