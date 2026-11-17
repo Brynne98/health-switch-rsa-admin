@@ -80,6 +80,8 @@ export type Overview = {
   usageDays: {
     day: string; users: number | null; dialled: number | null; copied: number | null; noResults: number | null;
     errors: number | null; crashes: number | null; fetchedAt: number;
+    /** When PostHog and Sentry last wrote the row; null before HSR-172. */
+    posthogAt: number | null; sentryAt: number | null;
   }[];
   /**
    * Per healthswitch.co.za/get?from= source, since its first click (HSR-171).

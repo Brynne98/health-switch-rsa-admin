@@ -36,15 +36,16 @@ function appleDays() {
 const short = (n: number, currency: string) =>
   n >= 10 ? new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n) : money(n, currency);
 
-type Day = { t: number; up: number; down: number; wait: boolean };
+/** `up2`: the part of `up` drawn on top in the second colour (Android downloads). */
+type Day = { t: number; up: number; up2?: number; down: number; wait: boolean };
 
 /**
  * One bar a day, the first measure up from the line and the second down.
  * The legend holds each side's total and hides that side when tapped. Pointing
  * at a day, or tapping it on a phone, opens its card beside the bar.
  */
-function Mirror({ days, names, card, label, height = 230 }: {
-  days: Day[]; names: [string, string]; card: (i: number) => ReactNode; label: string; height?: number;
+function Mirror({ days, names, parts, card, label, height = 230 }: {
+  days: Day[]; names: [string, string]; parts?: [string, string]; card: (i: number) => ReactNode; label: string; height?: number;
 }) {
   const [show, setShow] = useState([true, true]);
   const [at, setAt] = useState<number | null>(null);
@@ -58,9 +59,10 @@ function Mirror({ days, names, card, label, height = 230 }: {
   const done = days.filter((d) => !d.wait);
   const totals = [sum(done.map((d) => ({ v: d.up }))), sum(done.map((d) => ({ v: d.down })))];
   // A bar with its far end rounded; up grows from the line, down hangs from it.
-  const bar = (x: number, h: number, up: boolean) => {
+  // `from` lifts a bar to sit on another; `round: false` leaves its far end square for one to sit on it.
+  const bar = (x: number, h: number, up: boolean, from = 0, round = true) => {
     if (h <= 0) return '';
-    const r = Math.min(3, w / 2, h), y0 = up ? zero - 1 : zero + 1, s = up ? -1 : 1;
+    const r = round ? Math.min(3, w / 2, h) : 0, y0 = up ? zero - 1 - from : zero + 1, s = up ? -1 : 1;
     return `M${x},${y0} v${s * (h - r)} q0,${s * r} ${r},${s * r} h${w - 2 * r} q${r},0 ${r},${-s * r} v${-s * (h - r)} z`;
   };
   const pick = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -81,6 +83,11 @@ function Mirror({ days, names, card, label, height = 230 }: {
             <i className={`key ${side ? 'down' : 'up'}`} />{name} <b>{count(totals[side])}</b>
           </button>
         ))}
+        {parts && (
+          <span className="legend parts">
+            <span><i className="key up" />{parts[0]}</span><span><i className="key up2" />{parts[1]}</span>
+          </span>
+        )}
       </div>
       <div className="mirror">
         {[0, ...ticks].map((v) => <span key={v} className="y-label" style={{ top: zero - y(v) }}>{v}</span>)}
@@ -99,7 +106,13 @@ function Mirror({ days, names, card, label, height = 230 }: {
                 <g key={d.t} className={at === null || at === i ? '' : 'dim'}>
                   {d.wait
                     ? <rect className="waiting" x={x} y={zero - y(maxU / 2)} width={w} height={y(maxU / 2)} rx={2} vectorEffect="non-scaling-stroke" />
-                    : <><path className="up" d={bar(x, y(val(d, 0)), true)} /><path className="down" d={bar(x, y(val(d, 1)), false)} /></>}
+                    : <>
+                      {(() => {
+                        const top = show[0] ? d.up2 ?? 0 : 0, low = val(d, 0) - top;
+                        return <><path className="up" d={bar(x, y(low), true, 0, top <= 0)} /><path className="up2" d={bar(x, y(top), true, y(low))} /></>;
+                      })()}
+                      <path className="down" d={bar(x, y(val(d, 1)), false)} />
+                    </>}
                 </g>
               );
             })}
@@ -130,7 +143,7 @@ function Downloads({ data }: { data: Overview }) {
   const counted = rows.filter((r) => r.downloads !== null);
   const latest = counted.map((r) => r.day).sort().pop();
   // Apple's reports land 1 to 2 days late, so the daily job gets 3 days before it reads as stopped.
-  const stale = staleNote(counted, 3);
+  const stale = staleDays(counted, 3);
   const days = appleDays().map((day) => {
     const ios = got('ios', day), and = got('android', day);
     // Downloads and uninstalls come from separate reports; a day waits only while neither is in.
@@ -139,6 +152,7 @@ function Downloads({ data }: { data: Overview }) {
     return {
       t: noon(day), wait, day, ios, and,
       up: (ios?.downloads ?? 0) + (android ? and?.downloads ?? 0 : 0),
+      up2: android ? and?.downloads ?? 0 : 0,
       down: (ios?.uninstalls ?? 0) + (android ? and?.uninstalls ?? 0 : 0),
     };
   });
@@ -153,7 +167,7 @@ function Downloads({ data }: { data: Overview }) {
       ) : (
         <>
           <Mirror
-            days={days} names={['Downloads', 'Uninstalls']} label="Downloads and uninstalls"
+            days={days} names={['Downloads', 'Uninstalls']} parts={['iPhone', 'Android']} label="Downloads and uninstalls"
             card={(i) => {
               const d = days[i];
               return (
@@ -180,20 +194,26 @@ function Downloads({ data }: { data: Overview }) {
 /** The last 30 whole UTC days, to yesterday: the daily job runs just after midnight UTC. */
 const utcDays = () => Array.from({ length: DAYS }, (_, k) => isoDay(noon(isoDay(Date.now())) - (DAYS - k) * DAY_MS));
 
-/**
- * A day with no row draws as 0, so a job that has stopped would read as a quiet app. Sentry sends every day,
- * zeros included; PostHog skips a day with no events, so it gets one day's grace.
- */
-function staleNote(rows: { day: string }[], grace: number) {
+/** The stores' reports land days late, so their chart goes by the newest day with numbers, after `grace` days. */
+function staleDays(rows: { day: string }[], grace: number) {
   const latest = rows.map((r) => r.day).sort().pop() ?? '';
   return latest < isoDay(Date.now() - (1 + grace) * DAY_MS) ? ` Nothing newer than ${shortDate(noon(latest))}: check the daily job in Convex.` : '';
+}
+
+/**
+ * A day with no row draws as 0, so a job that has stopped would read as a quiet app. The job runs every day,
+ * so a source that has not written for 26 hours has stopped (HSR-172). Each source stamps its own time.
+ */
+function staleNote(stamps: (number | null)[]) {
+  const last = Math.max(0, ...stamps.map((s) => s ?? 0));
+  return last && last < Date.now() - 26 * 3_600_000 ? ` Not updated since ${when(last)}: check the daily job in Convex.` : '';
 }
 
 /** People using the live app each day, and searches that found nothing, from PostHog (HSR-144). */
 function Usage({ data }: { data: Overview }) {
   const rows = data.usageDays.filter((r) => r.users !== null);
   const got = (day: string) => rows.find((r) => r.day === day);
-  const stale = staleNote(rows, 1);
+  const stale = staleNote(rows.map((r) => r.posthogAt));
   const days = utcDays().map((day) => {
     const r = got(day);
     return { t: noon(day), wait: false, r, up: r?.users ?? 0, down: r?.noResults ?? 0 };
@@ -226,26 +246,26 @@ function Usage({ data }: { data: Overview }) {
   );
 }
 
-/** Errors and hangs that did not crash the app, and crashes, each day, and the issues that happen most, from Sentry (HSR-144). */
+/** Errors the app caught and errors it did not catch, each day, and the issues that happen most, from Sentry (HSR-144). */
 function Errors({ data }: { data: Overview }) {
   const rows = data.usageDays.filter((r) => r.errors !== null);
   const got = (day: string) => rows.find((r) => r.day === day);
-  const stale = staleNote(rows, 0);
-  // Crashes are errors too; the up side is only the rest, so a day's bar adds to its total.
+  const stale = staleNote(rows.map((r) => r.sentryAt));
+  // Sentry's errors include the uncaught ones; the up side is only the rest, so a day's bar adds to its total.
   const days = utcDays().map((day) => {
     const r = got(day), crashes = r?.crashes ?? 0;
     return { t: noon(day), wait: false, up: (r?.errors ?? 0) - crashes, down: crashes };
   });
   return (
     <div className="card wide">
-      <div className="h2">Errors and crashes, each day</div>
+      <div className="h2">Errors, each day</div>
       {!rows.length ? (
         <p className="muted">No numbers from Sentry yet. They update once a day; if this stays empty, check SENTRY_AUTH_TOKEN in Convex.</p>
       ) : (
         <>
           <Mirror
-            days={days} names={['Errors and hangs', 'Crashes']} label="Errors and crashes" height={150}
-            card={(i) => <table><tbody><tr><td>Errors and hangs</td><td>{count(days[i].up)}</td></tr><tr><td>Crashes</td><td>{count(days[i].down)}</td></tr></tbody></table>}
+            days={days} names={['Errors caught', 'Errors not caught']} label="Errors" height={150}
+            card={(i) => <table><tbody><tr><td>Caught</td><td>{count(days[i].up)}</td></tr><tr><td>Not caught</td><td>{count(days[i].down)}</td></tr></tbody></table>}
           />
           {data.errorIssues.length > 0 && (
             <>
@@ -263,7 +283,7 @@ function Errors({ data }: { data: Overview }) {
               </div>
             </>
           )}
-          <p className={`source ${stale ? 'stale' : ''}`}>Sentry, production only. Errors and hangs did not close the app; crashes did. Days end at midnight UTC.{stale}</p>
+          <p className={`source ${stale ? 'stale' : ''}`}>Sentry, production only. Caught: the app handled the error, and iPhone freezes. Not caught: nothing in the app handled it; most close the app, some do not. Days end at midnight UTC.{stale}</p>
         </>
       )}
     </div>

@@ -25,6 +25,7 @@
   --day: #f9f9fb;
   /* Chart pair: up (downloads, joins) and down (uninstalls, endings). */
   --dl: #2f4fd8;
+  --dl2: #1baf7a;
   --un: #d9711c;
   --grid: rgba(60, 60, 67, 0.1);
   color-scheme: light;
@@ -59,6 +60,7 @@
     --hover: rgba(255, 255, 255, 0.08);
     --day: #232325;
     --dl: #6f86ff;
+    --dl2: #199e70;
     --un: #d27a2c;
     --grid: rgba(255, 255, 255, 0.08);
     color-scheme: dark;
@@ -187,6 +189,8 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .key { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
 .key.up, .plan-split .up { background: var(--dl); }
 .key.down { background: var(--un); }
+.key.up2 { background: var(--dl2); }
+.legend.parts { align-self: center; margin-left: 6px; }
 .up.soft { background: color-mix(in srgb, var(--dl) 45%, var(--card)); }
 .plan-split { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; margin: 10px 0 6px; }
 /* Each legend item is a button that hides its side of the chart. */
@@ -215,6 +219,7 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .mirror .zero, .weekly .zero { stroke: var(--faint); }
 .mirror path.up, .weekly rect.up { fill: var(--dl); }
 .mirror path.down { fill: var(--un); }
+.mirror path.up2 { fill: var(--dl2); }
 .mirror .waiting { fill: none; stroke: var(--faint); stroke-dasharray: 3 3; }
 .weekly .running { fill: none; stroke: var(--dl); stroke-dasharray: 3 2; }
 .mirror g { transition: opacity 0.12s; }
