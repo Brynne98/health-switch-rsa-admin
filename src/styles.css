@@ -25,6 +25,7 @@
   --day: #f9f9fb;
   /* Chart pair: up (downloads, joins) and down (uninstalls, endings). */
   --dl: #2f4fd8;
+  --dl2: #1baf7a;
   --un: #d9711c;
   --grid: rgba(60, 60, 67, 0.1);
   color-scheme: light;
@@ -59,6 +60,7 @@
     --hover: rgba(255, 255, 255, 0.08);
     --day: #232325;
     --dl: #6f86ff;
+    --dl2: #199e70;
     --un: #d27a2c;
     --grid: rgba(255, 255, 255, 0.08);
     color-scheme: dark;
@@ -187,6 +189,8 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .key { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
 .key.up, .plan-split .up { background: var(--dl); }
 .key.down { background: var(--un); }
+.key.up2 { background: var(--dl2); }
+.legend.parts { align-self: center; margin-left: 6px; }
 .up.soft { background: color-mix(in srgb, var(--dl) 45%, var(--card)); }
 .plan-split { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; margin: 10px 0 6px; }
 /* Each legend item is a button that hides its side of the chart. */
@@ -215,6 +219,7 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .mirror .zero, .weekly .zero { stroke: var(--faint); }
 .mirror path.up, .weekly rect.up { fill: var(--dl); }
 .mirror path.down { fill: var(--un); }
+.mirror path.up2 { fill: var(--dl2); }
 .mirror .waiting { fill: none; stroke: var(--faint); stroke-dasharray: 3 3; }
 .weekly .running { fill: none; stroke: var(--dl); stroke-dasharray: 3 2; }
 .mirror g { transition: opacity 0.12s; }
@@ -232,10 +237,11 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .tip td { text-align: right; padding: 2px 0 2px 14px; }
 .tip td:first-child, .tip th:first-child { text-align: left; padding-left: 0; }
 .tip tr.total td { border-top: 1px solid var(--line); font-weight: 600; padding-top: 4px; }
-.funnel { margin: 10px 0 8px; }
-.funnel .step { display: grid; grid-template-columns: 120px minmax(0, 1fr) 52px; align-items: center; gap: 8px; font-size: 14px; margin: 8px 0; }
-.funnel .bar { height: 16px; border-radius: 4px; background: var(--dl); }
-.funnel .big-num { font-size: 15px; text-align: right; }
+.scroll-x { overflow-x: auto; margin-top: 10px; }
+.campaigns { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+.campaigns th { font-weight: 500; color: var(--muted); font-size: 12px; text-align: right; padding: 0 0 6px 16px; white-space: nowrap; }
+.campaigns td { text-align: right; padding: 8px 0 8px 16px; border-top: 1px solid var(--line); white-space: nowrap; }
+.campaigns td:first-child, .campaigns th:first-child { text-align: left; padding-left: 0; }
 .feed-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
 .feed-row { display: flex; gap: 8px; align-items: baseline; font-size: 14px; padding: 4px 0; }
 .feed-row .chip { flex-shrink: 0; }
