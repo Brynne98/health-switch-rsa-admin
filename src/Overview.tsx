@@ -2,7 +2,7 @@ import { useQuery } from 'convex/react';
 import { useState, type ReactNode } from 'react';
 
 import { api, type Overview, type RevenueChart } from './api';
-import { count, DAY_MS, longToday, money, shortDate, time, when } from './format';
+import { cash, count, DAY_MS, longToday, money, shortDate, time, when } from './format';
 
 type Pt = { t: number; v: number; incomplete?: boolean };
 
@@ -34,7 +34,7 @@ function appleDays() {
 
 /** Whole dollars once there is room to lose the cents. */
 const short = (n: number, currency: string) =>
-  n >= 10 ? new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n) : money(n, currency);
+  n >= 10 ? cash(n, currency, 0) : money(n, currency);
 
 /** `up2`: the part of `up` drawn on top in the second colour (Android downloads). */
 type Day = { t: number; up: number; up2?: number; down: number; wait: boolean };
@@ -45,13 +45,15 @@ type Day = { t: number; up: number; up2?: number; down: number; wait: boolean };
  * at a day, or tapping it on a phone, opens its card beside the bar.
  */
 function Mirror({ days, names, parts, card, label, height = 230 }: {
-  days: Day[]; names: [string, string]; parts?: [string, string]; card: (i: number) => ReactNode; label: string; height?: number;
+  days: Day[]; names: [string] | [string, string]; parts?: [string, string]; card: (i: number) => ReactNode; label: string; height?: number;
 }) {
   const [show, setShow] = useState([true, true]);
   const [at, setAt] = useState<number | null>(null);
   const W = 680, padB = 4, top = 10, n = days.length;
-  const val = (d: Day, side: 0 | 1) => (show[side] ? (side ? d.down : d.up) : 0);
-  const maxU = Math.max(1, ...days.map((d) => val(d, 0))), maxD = Math.max(1, ...days.map((d) => val(d, 1)));
+  // One name: only bars above the line, using the whole height (HSR-174).
+  const two = names.length > 1;
+  const val = (d: Day, side: 0 | 1) => (show[side] ? (side ? (two ? d.down : 0) : d.up) : 0);
+  const maxU = Math.max(1, ...days.map((d) => val(d, 0))), maxD = two ? Math.max(1, ...days.map((d) => val(d, 1))) : 0;
   const plotH = height - top - padB, span = maxU + maxD, zero = top + plotH * (maxU / span), y = (v: number) => (v / span) * plotH;
   const bw = W / n, gap = Math.max(2, bw * 0.25), w = bw - gap;
   const step = maxU <= 4 ? 1 : maxU <= 25 ? 5 : 10 * Math.ceil(maxU / 40);
@@ -216,7 +218,7 @@ function Usage({ data }: { data: Overview }) {
   const stale = staleNote(rows.map((r) => r.posthogAt));
   const days = utcDays().map((day) => {
     const r = got(day);
-    return { t: noon(day), wait: false, r, up: r?.users ?? 0, down: r?.noResults ?? 0 };
+    return { t: noon(day), wait: false, r, up: r?.users ?? 0, down: 0 };
   });
   return (
     <div className="card wide">
@@ -226,7 +228,7 @@ function Usage({ data }: { data: Overview }) {
       ) : (
         <>
           <Mirror
-            days={days} names={['People', 'Searches that found nothing']} label="People using the app"
+            days={days} names={['People']} label="People using the app"
             card={(i) => {
               const r = days[i].r;
               return (
@@ -234,6 +236,7 @@ function Usage({ data }: { data: Overview }) {
                   <tr><td>People</td><td>{count(r?.users ?? 0)}</td></tr>
                   <tr><td>Numbers dialled</td><td>{count(r?.dialled ?? 0)}</td></tr>
                   <tr><td>Numbers copied</td><td>{count(r?.copied ?? 0)}</td></tr>
+                  <tr><td>Numbers shared</td><td>{count(r?.shared ?? 0)}</td></tr>
                   <tr><td>Searches that found nothing</td><td>{count(r?.noResults ?? 0)}</td></tr>
                 </tbody></table>
               );
@@ -516,7 +519,7 @@ export function OverviewPage() {
           )}
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>
-              Money and Pro from RevenueCat, in {currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
+              Money and Pro from RevenueCat, in {currency === 'ZAR' ? 'rand' : currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
             </p>
           )}
           <h2 className="section">Downloads</h2>
