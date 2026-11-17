@@ -33,7 +33,13 @@ export function count(n: number) {
   return n.toLocaleString('en-US');
 }
 
-/** To the cent: with sums this small, rounding to dollars turns $1.84 into $2. */
-export function money(n: number, currency = 'USD') {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+/** Rand written as the stores write it, R29.99: no space after the R (HSR-173). */
+export function cash(n: number, currency: string, digits: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, currencyDisplay: 'narrowSymbol', minimumFractionDigits: digits, maximumFractionDigits: digits })
+    .format(n).replace(/^(-?R)\s/, '$1');
+}
+
+/** To the cent: with sums this small, rounding to whole rand turns R1.84 into R2. */
+export function money(n: number, currency = 'ZAR') {
+  return cash(n, currency, 2);
 }

@@ -2,7 +2,7 @@ import { useQuery } from 'convex/react';
 import { useState, type ReactNode } from 'react';
 
 import { api, type Overview, type RevenueChart } from './api';
-import { count, DAY_MS, longToday, money, shortDate, time, when } from './format';
+import { cash, count, DAY_MS, longToday, money, shortDate, time, when } from './format';
 
 type Pt = { t: number; v: number; incomplete?: boolean };
 
@@ -34,7 +34,7 @@ function appleDays() {
 
 /** Whole dollars once there is room to lose the cents. */
 const short = (n: number, currency: string) =>
-  n >= 10 ? new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n) : money(n, currency);
+  n >= 10 ? cash(n, currency, 0) : money(n, currency);
 
 /** `up2`: the part of `up` drawn on top in the second colour (Android downloads). */
 type Day = { t: number; up: number; up2?: number; down: number; wait: boolean };
@@ -516,7 +516,7 @@ export function OverviewPage() {
           )}
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>
-              Money and Pro from RevenueCat, in {currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
+              Money and Pro from RevenueCat, in {currency === 'ZAR' ? 'rand' : currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
             </p>
           )}
           <h2 className="section">Downloads</h2>
