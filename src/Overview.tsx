@@ -236,6 +236,7 @@ function Usage({ data }: { data: Overview }) {
                   <tr><td>People</td><td>{count(r?.users ?? 0)}</td></tr>
                   <tr><td>Numbers dialled</td><td>{count(r?.dialled ?? 0)}</td></tr>
                   <tr><td>Numbers copied</td><td>{count(r?.copied ?? 0)}</td></tr>
+                  <tr><td>Numbers shared</td><td>{count(r?.shared ?? 0)}</td></tr>
                   <tr><td>Searches that found nothing</td><td>{count(r?.noResults ?? 0)}</td></tr>
                 </tbody></table>
               );

@@ -78,7 +78,7 @@ export type Overview = {
   downloadsSinceLaunch: number;
   /** PostHog use (live builds) and Sentry errors (production) per UTC day, last 40 days (HSR-144). Null until that source's key is set. */
   usageDays: {
-    day: string; users: number | null; dialled: number | null; copied: number | null; noResults: number | null;
+    day: string; users: number | null; dialled: number | null; copied: number | null; shared: number | null; noResults: number | null;
     errors: number | null; crashes: number | null; fetchedAt: number;
     /** When PostHog and Sentry last wrote the row; null before HSR-172. */
     posthogAt: number | null; sentryAt: number | null;
