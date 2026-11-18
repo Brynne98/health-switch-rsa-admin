@@ -125,7 +125,7 @@ function Mirror({ days, names, parts, card, label, height = 230, average = false
           <div className="x-labels">
             {days.map((d, i) => (n - 1 - i) % 7 === 0 && (
               // The last label ends at the edge rather than running past it.
-            <span key={d.t} style={i === n - 1 ? { right: 0 } : { left: `${((i + 0.5) / n) * 100}%`, transform: 'translateX(-50%)' }}>{shortDate(d.t)}</span>
+            <span key={d.t} className={i === n - 8 ? 'near-end' : undefined} style={i === n - 1 ? { right: 0 } : { left: `${((i + 0.5) / n) * 100}%`, transform: 'translateX(-50%)' }}>{shortDate(d.t)}</span>
             ))}
           </div>
           {at !== null && (
@@ -177,7 +177,7 @@ function Downloads({ data }: { data: Overview }) {
             days={days} names={['Downloads', 'Uninstalls']} label="Downloads and uninstalls"
             parts={[
               { label: 'iPhone', key: 'up' }, ...(android ? [{ label: 'Android', key: 'up2' }] : []),
-              { label: 'iPhone uninstalls, only people who share data with Apple', key: 'down2' },
+              { label: 'iPhone uninstalls, partial count', key: 'down2' },
             ]}
             card={(i) => {
               const d = days[i];
@@ -276,7 +276,7 @@ function Errors({ data }: { data: Overview }) {
       ) : (
         <>
           <Mirror
-            days={days} names={['Errors caught', 'Errors not caught']} label="Errors" height={150}
+            days={days} names={['Caught', 'Not caught']} label="Errors" height={150}
             card={(i) => <table><tbody><tr><td>Caught</td><td>{count(days[i].up)}</td></tr><tr><td>Not caught</td><td>{count(days[i].down)}</td></tr></tbody></table>}
           />
           {data.errorIssues.length > 0 && (
@@ -288,7 +288,7 @@ function Errors({ data }: { data: Overview }) {
                     <span className="chip quiet">{count(i.events)}×</span>
                     <span className="clamp">
                       <a href={i.url} target="_blank" rel="noreferrer">{i.title}</a>
-                      <span className="lbl"> · {i.people === 1 ? '1 person' : `${count(i.people)} people`} · last {shortDate(i.lastSeen)}</span>
+                      <span className="lbl"> · {i.people === 1 ? '1 person' : `${count(i.people)} people`} · last seen {shortDate(i.lastSeen).replace(/^(Today|Yesterday)$/, (w) => w.toLowerCase())}</span>
                     </span>
                   </div>
                 ))}
@@ -327,7 +327,7 @@ function Ratings({ data }: { data: Overview }) {
               {r?.average ? (
                 <div className="rating-avg">
                   <span className="big-num">{r.average.toFixed(1)}</span><Stars n={r.average} />
-                  <span className="lbl">{r.count !== null ? `${count(r.count)} ${r.count === 1 ? 'rating' : 'ratings'}` : 'all ratings'}</span>
+                  {r.count !== null && <span className="lbl">{count(r.count)} {r.count === 1 ? 'rating' : 'ratings'}</span>}
                 </div>
               ) : <p className="muted">No ratings yet.</p>}
             </div>
@@ -364,7 +364,8 @@ function Campaigns({ data }: { data: Overview }) {
           <div className="scroll-x">
             <table className="campaigns">
               <thead>
-                <tr><th>Link</th><th>Clicks</th><th>iPhone</th><th>Android</th><th>Computer</th><th>App Store downloads</th><th>Play installs</th><th>Pro</th></tr>
+                <tr className="group"><th /><th colSpan={4}>Clicks</th><th colSpan={2}>Downloads</th><th>Pro</th></tr>
+                <tr><th>Link</th><th>All</th><th>iPhone</th><th>Android</th><th>Computer</th><th>App Store</th><th>Google Play</th><th>Android</th></tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
@@ -376,7 +377,7 @@ function Campaigns({ data }: { data: Overview }) {
                     <td>{count(r.clicksOther)}</td>
                     <td>{count(r.appleDownloads)}</td>
                     <td>{count(r.androidInstalls)}</td>
-                    <td>{count(r.androidPro)}<span className="lbl"> Android</span></td>
+                    <td>{count(r.androidPro)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -551,7 +552,7 @@ function BecamePro({ data, charts }: { data: Overview; charts: RevenueChart[] })
   const joined = sum(series(charts.find((c) => c.chart === 'actives_movement'), /^new/i, 0).map((p) => ({ v: Math.max(0, p.v) })));
   const all = data.downloadsSinceLaunch;
   return (
-    <Tile label="Downloads that became Pro" value={all ? `${((joined / all) * 100).toFixed(1)}%` : '–'}>
+    <Tile label="Downloads that became Pro" value={`${all ? ((joined / all) * 100).toFixed(1) : 0}%`}>
       {count(joined)} of {count(all)} since launch
     </Tile>
   );
@@ -578,7 +579,7 @@ function Latest({ activity }: { activity: Overview['activity'] }) {
           {g.items.map((a, i) => (
             <div key={i} className="feed-row">
               <span className={`chip ${KIND[a.kind][1] || 'quiet'}`}>{KIND[a.kind][0]}</span>
-              <span className="clamp">{a.text}{!a.day && <span className="lbl"> · {time(a.at)}</span>}</span>
+              <span className="clamp">{a.kind === 'idea' ? a.text.replace(/^Idea: /, '') : a.text}{!a.day && <span className="lbl"> · {time(a.at)}</span>}</span>
             </div>
           ))}
         </div>

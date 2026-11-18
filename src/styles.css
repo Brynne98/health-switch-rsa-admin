@@ -182,8 +182,9 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .big-num { font-size: 32px; font-weight: 700; letter-spacing: -0.3px; margin: 4px 0 2px; line-height: 1.15; }
 .totals > .card { display: flex; flex-direction: column; }
 /* Small weekly bars at a tile's foot, so the bars of a pair line up (HSR-179). */
-.week-bars { margin-top: auto; padding-top: 18px; }
-.week-bars svg { display: block; width: 100%; height: 56px; overflow: visible; }
+.week-bars { margin-top: auto; padding-top: 18px; flex: 1 1 auto; display: flex; flex-direction: column; }
+.week-bars .plot { flex: 1 1 56px; min-height: 56px; max-height: 180px; margin-top: auto; }
+.week-bars svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .week-bars rect.up { fill: var(--dl); }
 .week-bars rect.running { fill: var(--dl); fill-opacity: 0.4; }
 .week-bars rect { transition: opacity 0.12s; }
@@ -201,9 +202,9 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .review { padding: 12px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
 .review:first-child { border-top: 0; }
 .review-head { display: flex; align-items: center; gap: 10px; }
-.review p { margin: 0; }
+.review p { margin: 0; max-width: 75ch; }
 .week-axis { display: flex; justify-content: space-between; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 11px; color: var(--faint); }
-.source { font-size: 12px; color: var(--faint); margin: 8px 0 0; }
+.source { font-size: 12px; color: var(--faint); margin: 10px 0 0; max-width: 75ch; }
 .source.stale { color: var(--red); font-weight: 600; }
 .ink { color: var(--ink); }
 .lbl.gap { margin-top: 10px; }
@@ -258,6 +259,9 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .campaigns th { font-weight: 500; color: var(--muted); font-size: 12px; text-align: right; padding: 0 0 6px 16px; white-space: nowrap; }
 .campaigns td { text-align: right; padding: 8px 0 8px 16px; border-top: 1px solid var(--line); white-space: nowrap; }
 .campaigns td:first-child, .campaigns th:first-child { text-align: left; padding-left: 0; }
+/* Column groups over the table: each name spans its columns, a hairline under it. */
+.campaigns tr.group th { color: var(--ink); font-weight: 600; text-align: center; padding: 0 0 4px 16px; }
+.campaigns tr.group th:not(:first-child) { background: linear-gradient(var(--line), var(--line)) 16px 100% / calc(100% - 16px) 1px no-repeat; }
 .feed-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
 .feed-row { display: flex; gap: 8px; align-items: baseline; font-size: 14px; padding: 4px 0; }
 .feed-row .chip { flex-shrink: 0; }
@@ -455,6 +459,7 @@ a.cell-dial:hover { text-decoration: underline; }
   .totals { grid-template-columns: minmax(0, 1fr); }
   .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rating-stores { grid-template-columns: minmax(0, 1fr); }
+  .x-labels .near-end { display: none; }
   .card { padding: 16px; }
   .card.table, .card.flush { padding: 0; }
   .idea-row {
