@@ -2,7 +2,7 @@ import { useQuery } from 'convex/react';
 import { useState, type ReactNode } from 'react';
 
 import { api, type Overview, type RevenueChart } from './api';
-import { cash, count, DAY_MS, longToday, money, shortDate, time, when } from './format';
+import { count, DAY_MS, longToday, money, shortDate, time, when } from './format';
 
 type Pt = { t: number; v: number; incomplete?: boolean };
 
@@ -31,10 +31,6 @@ function appleDays() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
   return Array.from({ length: DAYS }, (_, k) => isoDay(noon(today) - (DAYS - k) * DAY_MS));
 }
-
-/** Whole dollars once there is room to lose the cents. */
-const short = (n: number, currency: string) =>
-  n >= 10 ? cash(n, currency, 0) : money(n, currency);
 
 /** `up2`: the part of `up` drawn on top in the second colour (Android downloads). */
 type Day = { t: number; up: number; up2?: number; down: number; wait: boolean };
@@ -333,78 +329,98 @@ function Campaigns({ data }: { data: Overview }) {
   );
 }
 
-/** Pro joins (new and back again) and endings each day, from RevenueCat's movement chart. */
-function ProMoves({ charts }: { charts: RevenueChart[] }) {
-  const moves = charts.find((c) => c.chart === 'actives_movement');
-  const byDay = new Map<number, { up: number; down: number }>();
-  const add = (pts: Pt[], k: 'up' | 'down') => pts.forEach((p) => {
-    const d = byDay.get(p.t) ?? { up: 0, down: 0 };
-    // Ends are net of recoveries, so a day with more restored than lost is negative: nobody left.
-    d[k] += Math.max(0, p.v);
-    byDay.set(p.t, d);
-  });
-  add(series(moves, /^new/i, 0), 'up');
-  add(series(moves, /resub/i, 1), 'up');
-  add(series(moves, /churn/i, 2), 'down');
-  const today = Date.parse(new Date().toISOString().slice(0, 10));
-  const days = Array.from({ length: DAYS }, (_, k) => today - (DAYS - 1 - k) * DAY_MS).map((t) => ({ t, wait: false, ...(byDay.get(t) ?? { up: 0, down: 0 }) }));
-  return (
-    <div className="card">
-      <div className="h2">Pro started and ended, each day</div>
-      {!moves ? <p className="muted">No data from RevenueCat yet.</p> : (
-        <Mirror
-          days={days} names={['Started', 'Ended']} label="Pro started and ended" height={190}
-          card={(i) => <table><tbody><tr><td>Started</td><td>{days[i].up}</td></tr><tr><td>Ended</td><td>{days[i].down}</td></tr></tbody></table>}
-        />
-      )}
-    </div>
-  );
+type Week = { t: number; v: number; running: boolean };
+
+/** Monday of a moment's week, at UTC midnight. */
+const monday = (t: number) => {
+  const d = Date.parse(isoDay(t));
+  return d - ((new Date(d).getUTCDay() + 6) % 7) * DAY_MS;
+};
+
+/** Points added up by week (Monday start), every week from the first to this one; a week with nothing is 0. */
+function byWeek(pts: { t: number; v: number }[]): Week[] {
+  const sums = new Map<number, number>();
+  pts.forEach((p) => sums.set(monday(p.t), (sums.get(monday(p.t)) ?? 0) + p.v));
+  const now = monday(Date.now());
+  const out: Week[] = [];
+  for (let t = Math.min(now, ...sums.keys()); t <= now; t += 7 * DAY_MS) out.push({ t, v: sums.get(t) ?? 0, running: t === now });
+  return out;
 }
 
-/** Revenue by week (Monday start), the last 9 weeks, and the 4 whole weeks before this one. */
-function weeks(charts: RevenueChart[]) {
-  const daily = series(charts.find((c) => c.chart === 'revenue'), /revenue|proceeds/i);
-  const monday = (t: number) => t - ((new Date(t).getUTCDay() + 6) % 7) * DAY_MS;
-  const byWeek = new Map<number, number>();
-  daily.forEach((p) => byWeek.set(monday(p.t), (byWeek.get(monday(p.t)) ?? 0) + p.v));
-  const now = monday(Date.parse(new Date().toISOString().slice(0, 10)));
-  return {
-    cols: [...byWeek].sort((a, b) => a[0] - b[0]).slice(-9), now,
-    fourWeeks: sum(daily.filter((p) => p.t >= now - 28 * DAY_MS && p.t < now)),
+/**
+ * A small bar a week at a tile's foot (HSR-179). The week still running is an outline.
+ * Pointing at a bar, or tapping it, shows its week and count; the arrow keys step through.
+ */
+function WeekBars({ weeks, unit, label }: { weeks: Week[]; unit: (n: number) => string; label: string }) {
+  const [at, setAt] = useState<number | null>(null);
+  const n = weeks.length, W = 300, H = 56, max = Math.max(1, ...weeks.map((w) => w.v));
+  const bw = W / n, gap = Math.min(6, bw * 0.3), w = bw - gap;
+  const pick = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const i = Math.floor(((e.clientX - r.left) / r.width) * n);
+    setAt(i >= 0 && i < n ? i : null);
   };
-}
-
-function YouGet({ charts, currency }: { charts: RevenueChart[]; currency: string }) {
+  const key = (e: React.KeyboardEvent) => {
+    const s = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+    if (s) { e.preventDefault(); setAt((i) => Math.min(n - 1, Math.max(0, (i ?? n) + s))); }
+  };
+  const left = at === null ? 0 : ((at + 0.5) / n) * 100;
   return (
-    <div className="card">
-      <div className="tile-label">You get</div>
-      <div className="big-num">{money(weeks(charts).fourWeeks, currency)}</div>
-      <div className="lbl">last 4 weeks, after VAT and Apple’s cut</div>
+    <div className="week-bars">
+      <div
+        className="plot" tabIndex={0} aria-label={`${label}: use the arrow keys to read each week`}
+        onPointerDown={pick} onPointerMove={pick} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setAt(null); }}
+        onFocus={() => setAt((i) => i ?? n - 1)} onBlur={() => setAt(null)} onKeyDown={key}
+      >
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+          {weeks.map((wk, i) => {
+            const h = wk.v > 0 ? Math.max(2, (wk.v / max) * (H - 1)) : wk.running ? 1 : 0;
+            return (
+              <rect
+                key={wk.t} className={`${wk.running ? 'running' : 'up'} ${at === null || at === i ? '' : 'dim'}`}
+                x={i * bw + gap / 2} y={H - h} width={w} height={h} rx={1.5}
+              />
+            );
+          })}
+        </svg>
+        {at !== null && (
+          <div className={`tip ${left > 50 ? 'flip' : ''}`} style={{ left: `${left}%` }} role="status">
+            <b>{weeks[at].running ? 'This week' : `Week of ${shortDate(weeks[at].t)}`}</b>
+            <span>{unit(weeks[at].v)}{weeks[at].running ? ' so far' : ''}</span>
+          </div>
+        )}
+      </div>
+      <div className="week-axis"><span>{shortDate(weeks[0].t)}</span><span>This week</span></div>
     </div>
   );
 }
 
-/** What Pro brings in each week, the amount on every bar. The week still running is an outline. */
-function Weekly({ charts, currency }: { charts: RevenueChart[]; currency: string }) {
-  const { cols, now } = weeks(charts);
-  const W = 330, h = 150, padB = 18, top = 16, max = Math.max(1, ...cols.map((c) => c[1]));
-  const bw = W / Math.max(cols.length, 1), gap = bw * 0.3, w = bw - gap;
+function DownloadsTile({ data }: { data: Overview }) {
+  const weeks = byWeek(data.downloadDays.map((d) => ({ t: noon(d.day), v: d.downloads })));
   return (
     <div className="card">
-      <div className="h2">You get, each week</div>
-      <svg className="weekly" viewBox={`0 0 ${W} ${h}`} role="img" aria-label={cols.map(([t, v]) => `week of ${shortDate(t)}: ${money(v, currency)}`).join(', ')}>
-        <line className="zero" x1={0} x2={W} y1={h - padB} y2={h - padB} />
-        {cols.map(([t, v], i) => {
-          const x = i * bw + gap / 2, hh = (v / max) * (h - padB - top), running = t === now;
-          return (
-            <g key={t}>
-              <rect className={running ? 'running' : 'up'} x={x} y={h - padB - hh - 1} width={w} height={Math.max(hh, running ? 1 : 0)} rx={2} />
-              {v > 0 && <text className="val" x={x + w / 2} y={h - padB - hh - 5} textAnchor="middle">{short(v, currency)}</text>}
-              {(i % 2 === 0 || running) && <text x={x + w / 2} y={h - 2} textAnchor="middle">{shortDate(t)}</text>}
-            </g>
-          );
-        })}
-      </svg>
+      <div className="tile-label">Downloads since launch</div>
+      <div className="big-num">{count(data.downloadsSinceLaunch)}</div>
+      <div className="lbl">App Store and Google Play</div>
+      <WeekBars weeks={weeks} label="Downloads each week" unit={(v) => (v === 1 ? '1 download' : `${count(v)} downloads`)} />
+    </div>
+  );
+}
+
+/** Everything Pro has brought in since launch, and the 4 whole weeks before this one. */
+function Earnings({ charts, currency }: { charts: RevenueChart[]; currency: string }) {
+  const daily = series(charts.find((c) => c.chart === 'revenue'), /revenue|proceeds/i);
+  const now = monday(Date.now());
+  return (
+    <div className="card">
+      <div className="tile-label">Lifetime earnings</div>
+      <div className="big-num">{money(sum(daily), currency)}</div>
+      {charts.length === 0 ? <div className="lbl">No data from RevenueCat yet.</div> : (
+        <>
+          <div className="lbl">since launch, after VAT and the stores’ cut</div>
+          <div className="lbl gap"><b className="ink">{money(sum(daily.filter((p) => p.t >= now - 28 * DAY_MS && p.t < now)), currency)}</b> in the last 4 weeks</div>
+        </>
+      )}
     </div>
   );
 }
@@ -412,19 +428,16 @@ function Weekly({ charts, currency }: { charts: RevenueChart[]; currency: string
 function Pro({ charts, currency }: { charts: RevenueChart[]; currency: string }) {
   const by = (id: RevenueChart['chart']) => charts.find((c) => c.chart === id);
   const plan = (id: 'mrr' | 'actives', match: RegExp, p?: string) => last(series(by(id), match, 0, p));
-  const monthly = plan('actives', /active/i, 'P1M'), yearly = plan('actives', /active/i, 'P1Y');
+  const moves = by('actives_movement');
+  // New and back again; both count as joining.
+  const joins = byWeek([...series(moves, /^new/i, 0), ...series(moves, /resub/i, 1)].map((p) => ({ t: p.t, v: Math.max(0, p.v) })));
   return (
     <div className="card">
       <div className="tile-label">People on Pro</div>
       <div className="big-num">{count(plan('actives', /active/i))}</div>
-      <div className="plan-split" aria-hidden="true">
-        <div className="up" style={{ flex: monthly || 0.0001 }} /><div className="up soft" style={{ flex: yearly || 0.0001 }} />
-      </div>
-      <div className="legend">
-        <span><i className="key up" />{count(monthly)} monthly</span>
-        <span><i className="key up soft" />{count(yearly)} yearly</span>
-      </div>
-      <div className="lbl gap"><b className="ink">{money(plan('mrr', /mrr/i), currency)}</b> a month if nobody cancels</div>
+      <div className="lbl">{count(plan('actives', /active/i, 'P1M'))} monthly · {count(plan('actives', /active/i, 'P1Y'))} yearly</div>
+      <div className="lbl"><b className="ink">{money(plan('mrr', /mrr/i), currency)}</b> a month if nobody cancels</div>
+      <WeekBars weeks={joins} label="People joining Pro each week" unit={(v) => `${count(v)} joined`} />
     </div>
   );
 }
@@ -497,26 +510,15 @@ export function OverviewPage() {
       {!data ? <div className="loading" aria-busy="true" /> : (
         <div className="overview">
           <div className="top-row wide">
+            {/* Charts on top, plain numbers below; downloads on the left, money on the right (HSR-179). */}
             <div className="totals">
-              <Tile label="Downloads since launch" value={count(data.downloadsSinceLaunch)} />
-              <Tile label="Downloads, last 30 days" value={count(lastDays(data).downloads)} />
-              <YouGet charts={charts} currency={currency} />
+              <DownloadsTile data={data} />
               <Pro charts={charts} currency={currency} />
+              <Tile label="Downloads, last 30 days" value={count(lastDays(data).downloads)} />
+              <Earnings charts={charts} currency={currency} />
             </div>
             <Latest activity={data.activity} />
           </div>
-          <h2 className="section">Money</h2>
-          {charts.length === 0 ? (
-            <div className="card wide">
-              <div className="h2">Revenue</div>
-              <p className="muted">No data from RevenueCat yet. It updates every hour; if it stays empty, check the key and project in the Convex environment.</p>
-            </div>
-          ) : (
-            <>
-              <Weekly charts={charts} currency={currency} />
-              <ProMoves charts={charts} />
-            </>
-          )}
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>
               Money and Pro from RevenueCat, in {currency === 'ZAR' ? 'rand' : currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}

@@ -173,13 +173,22 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 /* Cards in one row share a height; a chart sits at the card's foot so pairs line up. */
 .overview { align-items: stretch; }
 .overview > .card { display: flex; flex-direction: column; }
-.overview > .card > .legend-buttons, .overview > .card > svg.weekly { margin-top: auto; }
+.overview > .card > .legend-buttons { margin-top: auto; }
 /* Top: 2x2 totals, Latest beside them at the same height (HSR-162). */
-.top-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.top-row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
 .totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .overview > .section { grid-column: 1 / -1; margin: 16px 0 -4px; font-size: 20px; font-weight: 700; }
 .tile-label { font-weight: 600; font-size: 14px; color: var(--muted); }
-.big-num { font-size: 32px; font-weight: 700; letter-spacing: -0.3px; }
+.big-num { font-size: 32px; font-weight: 700; letter-spacing: -0.3px; margin: 4px 0 2px; line-height: 1.15; }
+.totals > .card { display: flex; flex-direction: column; }
+/* Small weekly bars at a tile's foot, so the bars of a pair line up (HSR-179). */
+.week-bars { margin-top: auto; padding-top: 18px; }
+.week-bars svg { display: block; width: 100%; height: 56px; overflow: visible; }
+.week-bars rect.up { fill: var(--dl); }
+.week-bars rect.running { fill: var(--dl); fill-opacity: 0.4; }
+.week-bars rect { transition: opacity 0.12s; }
+.week-bars rect.dim { opacity: 0.3; }
+.week-axis { display: flex; justify-content: space-between; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 11px; color: var(--faint); }
 .source { font-size: 12px; color: var(--faint); margin: 8px 0 0; }
 .source.stale { color: var(--red); font-weight: 600; }
 .ink { color: var(--ink); }
@@ -187,12 +196,10 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
 .legend > span { display: flex; align-items: center; gap: 6px; }
 .key { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
-.key.up, .plan-split .up { background: var(--dl); }
+.key.up { background: var(--dl); }
 .key.down { background: var(--un); }
 .key.up2 { background: var(--dl2); }
 .legend.parts { align-self: center; margin-left: 6px; }
-.up.soft { background: color-mix(in srgb, var(--dl) 45%, var(--card)); }
-.plan-split { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; margin: 10px 0 6px; }
 /* Each legend item is a button that hides its side of the chart. */
 .legend-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; }
 .legend-buttons button {
@@ -210,18 +217,13 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .x-labels span { position: absolute; font-size: 11px; color: var(--faint); white-space: nowrap; }
 /* A tap on a phone focuses the chart too; the ring is for the keyboard only. */
 .plot:focus:not(:focus-visible) { outline: none; }
-.mirror svg, .weekly { display: block; width: 100%; overflow: visible; }
-.weekly { height: auto; }
-.weekly text { fill: var(--faint); font-size: 11px; }
-.weekly { margin-top: 8px; }
-.weekly text.val { fill: var(--muted); font-weight: 600; }
+.mirror svg { display: block; width: 100%; overflow: visible; }
 .mirror .grid { stroke: var(--grid); }
-.mirror .zero, .weekly .zero { stroke: var(--faint); }
-.mirror path.up, .weekly rect.up { fill: var(--dl); }
+.mirror .zero { stroke: var(--faint); }
+.mirror path.up { fill: var(--dl); }
 .mirror path.down { fill: var(--un); }
 .mirror path.up2 { fill: var(--dl2); }
 .mirror .waiting { fill: none; stroke: var(--faint); stroke-dasharray: 3 3; }
-.weekly .running { fill: none; stroke: var(--dl); stroke-dasharray: 3 2; }
 .mirror g { transition: opacity 0.12s; }
 .mirror g.dim { opacity: 0.3; }
 /* One pop-up for every chart: the date strong, the numbers below. Past halfway it flips to the left. */
@@ -435,6 +437,8 @@ a.cell-dial:hover { text-decoration: underline; }
   .tabs button { flex: 1 1 auto; padding: 0 6px; font-size: 13px; }
   .overview { grid-template-columns: minmax(0, 1fr); }
   .top-row { grid-template-columns: minmax(0, 1fr); }
+  /* One tile a row on a phone, so the small charts get the full width (HSR-179). */
+  .totals { grid-template-columns: minmax(0, 1fr); }
   .card { padding: 16px; }
   .card.table, .card.flush { padding: 0; }
   .idea-row {
