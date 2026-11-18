@@ -76,6 +76,12 @@ export type Overview = {
   storeDays: { store: 'ios' | 'android'; day: string; downloads: number | null; uninstalls: number | null }[];
   /** Every stored day of both stores added up. */
   downloadsSinceLaunch: number;
+  /** Both stores added up for every stored day since launch (HSR-179). */
+  downloadDays: { day: string; downloads: number }[];
+  /** Each store's average stars; Google gives no count (HSR-179). */
+  ratings: { store: 'ios' | 'android'; average: number | null; count: number | null; fetchedAt: number }[];
+  /** The newest written reviews from both stores. */
+  reviews: { store: 'ios' | 'android'; rating: number; title: string | null; text: string; at: number }[];
   /** PostHog use (live builds) and Sentry errors (production) per UTC day, last 40 days (HSR-144). Null until that source's key is set. */
   usageDays: {
     day: string; users: number | null; dialled: number | null; copied: number | null; shared: number | null; noResults: number | null;
@@ -85,12 +91,13 @@ export type Overview = {
   }[];
   /**
    * Per healthswitch.co.za/get?from= source, since its first click (HSR-171).
-   * `appleEstimate`: App Store downloads on days the source had iPhone clicks,
-   * capped at those clicks. Android installs and Pro are exact.
+   * Android installs and Pro are exact.
    */
   campaigns: {
     source: string; firstDay: string; clicksIos: number; clicksAndroid: number; clicksOther: number;
-    appleEstimate: number; androidInstalls: number; androidPro: number;
+    androidInstalls: number; androidPro: number;
+    /** Apple's own first downloads for the link's ct= campaign; only people who share data with Apple, small counts dropped (HSR-179). */
+    appleDownloads: number;
   }[];
   /** Sentry's five most frequent open issues over 30 days. */
   errorIssues: { title: string; where: string; events: number; people: number; lastSeen: number; url: string }[];
