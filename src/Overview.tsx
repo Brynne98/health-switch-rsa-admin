@@ -82,7 +82,7 @@ function Mirror({ days, names, parts, card, label, height = 230, average = false
         {names.map((name, side) => (
           <button key={name} aria-pressed={show[side]} onClick={() => setShow((s) => s.map((v, k) => (k === side ? !v : v)))}>
             <i className={`key ${side ? 'down' : 'up'}`} />{name}{' '}
-            {average ? <><b>{count(Math.round(totals[side] / Math.max(1, done.length)))}</b> a day</> : <b>{count(totals[side])}</b>}
+            {average ? <><b>{count(Math.round(totals[side] / Math.max(1, done.filter((d) => d.up > 0).length)))}</b> a day</> : <b>{count(totals[side])}</b>}
           </button>
         ))}
         {parts && (
@@ -337,8 +337,8 @@ function Ratings({ data }: { data: Overview }) {
       <div className="tile-label" style={{ marginTop: 18 }}>Latest comments</div>
       {data.reviews.length === 0 ? <p className="muted">No written reviews yet.</p> : (
         <div className="feed">
-          {data.reviews.map((r) => (
-            <div key={`${r.store}${r.at}`} className="review">
+          {data.reviews.map((r, i) => (
+            <div key={i} className="review">
               <div className="review-head"><Stars n={r.rating} /><span className="lbl">{STORE[r.store]} · {shortDate(r.at)}</span></div>
               {r.title && <b>{r.title}</b>}
               <p>{r.text}</p>
