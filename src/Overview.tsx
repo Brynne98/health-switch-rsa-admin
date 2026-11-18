@@ -606,19 +606,21 @@ export function OverviewPage() {
       </header>
       {!data ? <div className="loading" aria-busy="true" /> : (
         <div className="overview">
-          <div className="top-row wide">
-            {/* The two charts beside Latest; every plain number in one row under them (HSR-179). */}
-            <div className="totals">
-              <DownloadsTile data={data} />
-              <Pro charts={charts} currency={currency} />
-            </div>
-            <Latest activity={data.activity} />
+          {/* Charts and numbers on the left; Latest beside them at their height, scrolling inside, so no tile stretches (HSR-184). */}
+          <div className="top-area wide">
+          <div className="top-left">
+          <div className="totals">
+            <DownloadsTile data={data} />
+            <Pro charts={charts} currency={currency} />
           </div>
-          <div className="numbers wide">
+          <div className="numbers">
             <Earnings charts={charts} currency={currency} />
             <Calls data={data} />
             <ThisWeek charts={charts} />
             <BecamePro data={data} charts={charts} />
+          </div>
+          </div>
+          <div className="latest-box"><Latest activity={data.activity} /></div>
           </div>
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>

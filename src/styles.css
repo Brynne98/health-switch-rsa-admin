@@ -175,7 +175,12 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .overview > .card { display: flex; flex-direction: column; }
 .overview > .card > .legend-buttons { margin-top: auto; }
 /* Top: 2x2 totals, Latest beside them at the same height (HSR-162). */
-.top-row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+/* Top: charts and numbers on the left; Latest beside them, exactly their height, scrolling inside (HSR-184). */
+.top-area { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+.top-left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.latest-box { position: relative; min-height: 240px; }
+.latest-box > .card { position: absolute; inset: 0; overflow-y: auto; }
+.top-left .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .overview > .section { grid-column: 1 / -1; margin: 16px 0 -4px; font-size: 20px; font-weight: 700; }
 .tile-label { font-weight: 600; font-size: 14px; color: var(--muted); }
@@ -414,6 +419,10 @@ a.cell-dial:hover { text-decoration: underline; }
 
 /* Small laptop and tablet */
 @media (max-width: 1100px) {
+  /* No room beside: Latest goes under the numbers at its own height (HSR-184). */
+  .top-area { grid-template-columns: minmax(0, 1fr); }
+  .latest-box { min-height: 0; }
+  .latest-box > .card { position: static; }
   /* Ideas: text gets the full width; status, date and flags go on a second line. */
   .idea-row {
     grid-template-columns: 48px auto auto minmax(0, 1fr) 44px; grid-template-areas: "v t t t m" "v s meta rep m";
@@ -454,7 +463,6 @@ a.cell-dial:hover { text-decoration: underline; }
   .tabs { align-self: stretch; overflow: visible; }
   .tabs button { flex: 1 1 auto; padding: 0 6px; font-size: 13px; }
   .overview { grid-template-columns: minmax(0, 1fr); }
-  .top-row { grid-template-columns: minmax(0, 1fr); }
   /* One tile a row on a phone, so the small charts get the full width (HSR-179). */
   .totals { grid-template-columns: minmax(0, 1fr); }
   .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
