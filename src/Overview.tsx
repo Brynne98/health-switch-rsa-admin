@@ -605,14 +605,12 @@ export function OverviewPage() {
         </div>
       </header>
       {!data ? <div className="loading" aria-busy="true" /> : (
+        // Latest runs down the right as its own rail, so no tile stretches to its height (HSR-184).
+        <div className="overview-layout">
         <div className="overview">
-          <div className="top-row wide">
-            {/* The two charts beside Latest; every plain number in one row under them (HSR-179). */}
-            <div className="totals">
-              <DownloadsTile data={data} />
-              <Pro charts={charts} currency={currency} />
-            </div>
-            <Latest activity={data.activity} />
+          <div className="totals wide">
+            <DownloadsTile data={data} />
+            <Pro charts={charts} currency={currency} />
           </div>
           <div className="numbers wide">
             <Earnings charts={charts} currency={currency} />
@@ -620,6 +618,7 @@ export function OverviewPage() {
             <ThisWeek charts={charts} />
             <BecamePro data={data} charts={charts} />
           </div>
+          <div className="latest-inline wide"><Latest activity={data.activity} /></div>
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>
               Money and Pro from RevenueCat, in {currency === 'ZAR' ? 'rand' : currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
@@ -633,6 +632,8 @@ export function OverviewPage() {
           <h2 className="section">App use and errors</h2>
           <Usage data={data} />
           <Errors data={data} />
+        </div>
+        <aside className="rail"><Latest activity={data.activity} /></aside>
         </div>
       )}
     </>
