@@ -68,6 +68,12 @@
 }
 
 * { box-sizing: border-box; }
+/* Scroll bars: thin and rounded, in the page's own colours (HSR-185). Chrome and Firefox read the first two lines; Safari the -webkit- rules. */
+html { scrollbar-color: var(--secondary) var(--bg); }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--secondary); border-radius: 8px; border: 3px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 body {
   margin: 0;
   background: var(--bg);
@@ -179,7 +185,10 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 .top-area { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
 .top-left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .latest-box { position: relative; min-height: 240px; }
-.latest-box > .card { position: absolute; inset: 0; overflow-y: auto; }
+.latest-box > .card { position: absolute; inset: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--secondary) transparent; }
+.latest-box > .card::-webkit-scrollbar { width: 8px; }
+.latest-box > .card::-webkit-scrollbar-track { background: transparent; }
+.latest-box > .card::-webkit-scrollbar-thumb { border: 2px solid var(--card); }
 .top-left .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .overview > .section { grid-column: 1 / -1; margin: 16px 0 -4px; font-size: 20px; font-weight: 700; }
