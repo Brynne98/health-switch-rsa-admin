@@ -33,15 +33,18 @@ function appleDays() {
 }
 
 /** `up2`: the part of `up` drawn on top in the second colour (Android downloads). */
-type Day = { t: number; up: number; up2?: number; down: number; wait: boolean };
+/** `down2`: the part of `down` drawn lighter, beyond the rest (iPhone uninstalls, a sample only; HSR-179). */
+type Day = { t: number; up: number; up2?: number; down: number; down2?: number; wait: boolean };
 
 /**
  * One bar a day, the first measure up from the line and the second down.
  * The legend holds each side's total and hides that side when tapped. Pointing
  * at a day, or tapping it on a phone, opens its card beside the bar.
  */
-function Mirror({ days, names, parts, card, label, height = 230 }: {
-  days: Day[]; names: [string] | [string, string]; parts?: [string, string]; card: (i: number) => ReactNode; label: string; height?: number;
+function Mirror({ days, names, parts, card, label, height = 230, average = false }: {
+  days: Day[]; names: [string] | [string, string]; parts?: { label: string; key: string }[]; card: (i: number) => ReactNode; label: string; height?: number;
+  /** The legend gives a day's average rather than the total, for counts that cannot be added up across days (HSR-179). */
+  average?: boolean;
 }) {
   const [show, setShow] = useState([true, true]);
   const [at, setAt] = useState<number | null>(null);
@@ -60,7 +63,7 @@ function Mirror({ days, names, parts, card, label, height = 230 }: {
   // `from` lifts a bar to sit on another; `round: false` leaves its far end square for one to sit on it.
   const bar = (x: number, h: number, up: boolean, from = 0, round = true) => {
     if (h <= 0) return '';
-    const r = round ? Math.min(3, w / 2, h) : 0, y0 = up ? zero - 1 - from : zero + 1, s = up ? -1 : 1;
+    const r = round ? Math.min(3, w / 2, h) : 0, y0 = up ? zero - 1 - from : zero + 1 + from, s = up ? -1 : 1;
     return `M${x},${y0} v${s * (h - r)} q0,${s * r} ${r},${s * r} h${w - 2 * r} q${r},0 ${r},${-s * r} v${-s * (h - r)} z`;
   };
   const pick = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -78,12 +81,13 @@ function Mirror({ days, names, parts, card, label, height = 230 }: {
       <div className="legend-buttons">
         {names.map((name, side) => (
           <button key={name} aria-pressed={show[side]} onClick={() => setShow((s) => s.map((v, k) => (k === side ? !v : v)))}>
-            <i className={`key ${side ? 'down' : 'up'}`} />{name} <b>{count(totals[side])}</b>
+            <i className={`key ${side ? 'down' : 'up'}`} />{name}{' '}
+            {average ? <><b>{count(Math.round(totals[side] / Math.max(1, done.length)))}</b> a day</> : <b>{count(totals[side])}</b>}
           </button>
         ))}
         {parts && (
           <span className="legend parts">
-            <span><i className="key up" />{parts[0]}</span><span><i className="key up2" />{parts[1]}</span>
+            {parts.map((p) => <span key={p.label}><i className={`key ${p.key}`} />{p.label}</span>)}
           </span>
         )}
       </div>
@@ -109,7 +113,10 @@ function Mirror({ days, names, parts, card, label, height = 230 }: {
                         const top = show[0] ? d.up2 ?? 0 : 0, low = val(d, 0) - top;
                         return <><path className="up" d={bar(x, y(low), true, 0, top <= 0)} /><path className="up2" d={bar(x, y(top), true, y(low))} /></>;
                       })()}
-                      <path className="down" d={bar(x, y(val(d, 1)), false)} />
+                      {(() => {
+                        const light = show[1] ? d.down2 ?? 0 : 0, solid = val(d, 1) - light;
+                        return <><path className="down" d={bar(x, y(solid), false, 0, light <= 0)} /><path className="down2" d={bar(x, y(light), false, y(solid))} /></>;
+                      })()}
                     </>}
                 </g>
               );
@@ -152,6 +159,8 @@ function Downloads({ data }: { data: Overview }) {
       up: (ios?.downloads ?? 0) + (android ? and?.downloads ?? 0 : 0),
       up2: android ? and?.downloads ?? 0 : 0,
       down: (ios?.uninstalls ?? 0) + (android ? and?.uninstalls ?? 0 : 0),
+      // Apple only counts people who share data with it, so its part is drawn lighter (HSR-179).
+      down2: ios?.uninstalls ?? 0,
     };
   });
   const line = (name: string, r?: (typeof rows)[number]) => (
@@ -165,7 +174,11 @@ function Downloads({ data }: { data: Overview }) {
       ) : (
         <>
           <Mirror
-            days={days} names={['Downloads', 'Uninstalls']} parts={['iPhone', 'Android']} label="Downloads and uninstalls"
+            days={days} names={['Downloads', 'Uninstalls']} label="Downloads and uninstalls"
+            parts={[
+              { label: 'iPhone', key: 'up' }, ...(android ? [{ label: 'Android', key: 'up2' }] : []),
+              { label: 'iPhone uninstalls, only people who share data with Apple', key: 'down2' },
+            ]}
             card={(i) => {
               const d = days[i];
               return (
@@ -181,7 +194,7 @@ function Downloads({ data }: { data: Overview }) {
             }}
           />
           <p className={`source ${stale ? 'stale' : ''}`}>
-            {android ? 'App Store and Google Play' : 'App Store'}, up to {shortDate(noon(latest))}. Apple ends each day at midnight US Pacific time, and only counts uninstalls from people who share data with it, so uninstalls read low.{stale}
+            {android ? 'App Store and Google Play' : 'App Store'}, up to {shortDate(noon(latest))}. Apple ends each day at midnight US Pacific time, and counts iPhone uninstalls only from people who share data with it, so the lighter part reads low. Google counts every Android uninstall.{stale}
           </p>
         </>
       )}
@@ -224,7 +237,7 @@ function Usage({ data }: { data: Overview }) {
       ) : (
         <>
           <Mirror
-            days={days} names={['People']} label="People using the app"
+            days={days} names={['People']} label="People using the app" average
             card={(i) => {
               const r = days[i].r;
               return (
@@ -238,7 +251,7 @@ function Usage({ data }: { data: Overview }) {
               );
             }}
           />
-          <p className={`source ${stale ? 'stale' : ''}`}>PostHog, live app only. The People total adds up each day, so someone who used it on 3 days counts 3 times. Days end at midnight UTC.{stale}</p>
+          <p className={`source ${stale ? 'stale' : ''}`}>PostHog, live app only. People is the average a day over these 30 days. Days end at midnight UTC.{stale}</p>
         </>
       )}
     </div>
@@ -289,6 +302,55 @@ function Errors({ data }: { data: Overview }) {
   );
 }
 
+const STORE = { ios: 'App Store', android: 'Google Play' } as const;
+
+/** Five stars, the first `n` filled, read out as a number. */
+function Stars({ n }: { n: number }) {
+  return (
+    <span className="stars" role="img" aria-label={`${n.toFixed(1)} out of 5 stars`}>
+      {[1, 2, 3, 4, 5].map((k) => <i key={k} className={k <= Math.round(n) ? 'on' : ''} />)}
+    </span>
+  );
+}
+
+/** Each store's average stars, then the newest written reviews from both (HSR-179). */
+function Ratings({ data }: { data: Overview }) {
+  const of = (store: 'ios' | 'android') => data.ratings.find((r) => r.store === store);
+  return (
+    <div className="card wide">
+      <div className="rating-stores">
+        {(['ios', 'android'] as const).map((store) => {
+          const r = of(store);
+          return (
+            <div key={store}>
+              <div className="tile-label">{STORE[store]}</div>
+              {r?.average ? (
+                <div className="rating-avg">
+                  <span className="big-num">{r.average.toFixed(1)}</span><Stars n={r.average} />
+                  <span className="lbl">{r.count !== null ? `${count(r.count)} ${r.count === 1 ? 'rating' : 'ratings'}` : 'all ratings'}</span>
+                </div>
+              ) : <p className="muted">No ratings yet.</p>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="tile-label" style={{ marginTop: 18 }}>Latest comments</div>
+      {data.reviews.length === 0 ? <p className="muted">No written reviews yet.</p> : (
+        <div className="feed">
+          {data.reviews.map((r) => (
+            <div key={`${r.store}${r.at}`} className="review">
+              <div className="review-head"><Stars n={r.rating} /><span className="lbl">{STORE[r.store]} · {shortDate(r.at)}</span></div>
+              {r.title && <b>{r.title}</b>}
+              <p>{r.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="source">Apple’s average is the South African store page’s. Google’s comes from its daily report files, 3 to 7 days late, with no count. Ratings without words are not listed as comments.</p>
+    </div>
+  );
+}
+
 /** Clicks on each healthswitch.co.za/get?from= link, then downloads by store, then Pro (HSR-171). */
 function Campaigns({ data }: { data: Overview }) {
   const rows = data.campaigns ?? [];
@@ -312,7 +374,7 @@ function Campaigns({ data }: { data: Overview }) {
                     <td>{count(r.clicksIos)}</td>
                     <td>{count(r.clicksAndroid)}</td>
                     <td>{count(r.clicksOther)}</td>
-                    <td>{r.clicksIos ? `up to ${count(r.appleEstimate)}` : '–'}</td>
+                    <td>{count(r.appleDownloads)}</td>
                     <td>{count(r.androidInstalls)}</td>
                     <td>{count(r.androidPro)}<span className="lbl"> Android</span></td>
                   </tr>
@@ -321,7 +383,7 @@ function Campaigns({ data }: { data: Overview }) {
             </table>
           </div>
           <p className="source">
-            Clicks from the link itself, test links left out. App Store downloads are an estimate: Apple never says which link an install came from, so this counts downloads on the days that link had iPhone clicks. Play installs and Pro are exact, for Android phones on the update that reads the install link.
+            Clicks from the link itself, test links left out. App Store downloads are Apple’s own count for the link, but only from people who share data with Apple, and Apple leaves out very small counts, so they read low. Play installs and Pro are exact, for Android phones that opened the app on the update that reads the install link.
           </p>
         </>
       )}
@@ -401,7 +463,7 @@ function DownloadsTile({ data }: { data: Overview }) {
     <div className="card">
       <div className="tile-label">Downloads since launch</div>
       <div className="big-num">{count(data.downloadsSinceLaunch)}</div>
-      <div className="lbl">App Store and Google Play</div>
+      <div className="lbl"><b className="ink">{count(lastDays(data).downloads)}</b> in the last 30 days</div>
       <WeekBars weeks={weeks} label="Downloads each week" unit={(v) => (v === 1 ? '1 download' : `${count(v)} downloads`)} />
     </div>
   );
@@ -451,13 +513,47 @@ function lastDays(data: Overview) {
   return { android, days, downloads };
 }
 
-/** One number with its label, for the top grid (HSR-162). */
-function Tile({ label, value }: { label: string; value: string }) {
+/** One number with its label and a line under it, for the numbers row (HSR-162, HSR-179). */
+function Tile({ label, value, children }: { label: string; value: string; children?: ReactNode }) {
   return (
     <div className="card">
       <div className="tile-label">{label}</div>
       <div className="big-num">{value}</div>
+      {children && <div className="lbl">{children}</div>}
     </div>
+  );
+}
+
+/** Numbers dialled, copied and shared from the app over the last 30 days, from PostHog (HSR-179). */
+function Calls({ data }: { data: Overview }) {
+  const days = new Set(utcDays());
+  const rows = data.usageDays.filter((r) => days.has(r.day));
+  const add = (k: 'dialled' | 'copied' | 'shared') => rows.reduce((n, r) => n + (r[k] ?? 0), 0);
+  return (
+    <Tile label="Numbers used, last 30 days" value={count(add('dialled') + add('copied') + add('shared'))}>
+      {count(add('dialled'))} dialled · {count(add('copied'))} copied · {count(add('shared'))} shared
+    </Tile>
+  );
+}
+
+/** Phones that opened the app this week, each once, from RevenueCat's weekly count (HSR-179). */
+function ThisWeek({ charts }: { charts: RevenueChart[] }) {
+  const weeks = series(charts.find((c) => c.chart === 'customers_active'), /active/i);
+  return (
+    <Tile label="People this week" value={count(last(weeks))}>
+      {weeks.length > 1 ? <><b className="ink">{count(weeks[weeks.length - 2].v)}</b> the week before</> : 'each phone counted once'}
+    </Tile>
+  );
+}
+
+/** People who ever started Pro, out of every download since launch (HSR-179). */
+function BecamePro({ data, charts }: { data: Overview; charts: RevenueChart[] }) {
+  const joined = sum(series(charts.find((c) => c.chart === 'actives_movement'), /^new/i, 0).map((p) => ({ v: Math.max(0, p.v) })));
+  const all = data.downloadsSinceLaunch;
+  return (
+    <Tile label="Downloads that became Pro" value={all ? `${((joined / all) * 100).toFixed(1)}%` : '–'}>
+      {count(joined)} of {count(all)} since launch
+    </Tile>
   );
 }
 
@@ -510,14 +606,18 @@ export function OverviewPage() {
       {!data ? <div className="loading" aria-busy="true" /> : (
         <div className="overview">
           <div className="top-row wide">
-            {/* Charts on top, plain numbers below; downloads on the left, money on the right (HSR-179). */}
+            {/* The two charts beside Latest; every plain number in one row under them (HSR-179). */}
             <div className="totals">
               <DownloadsTile data={data} />
               <Pro charts={charts} currency={currency} />
-              <Tile label="Downloads, last 30 days" value={count(lastDays(data).downloads)} />
-              <Earnings charts={charts} currency={currency} />
             </div>
             <Latest activity={data.activity} />
+          </div>
+          <div className="numbers wide">
+            <Earnings charts={charts} currency={currency} />
+            <Calls data={data} />
+            <ThisWeek charts={charts} />
+            <BecamePro data={data} charts={charts} />
           </div>
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>
@@ -527,6 +627,8 @@ export function OverviewPage() {
           <h2 className="section">Downloads</h2>
           <Downloads data={data} />
           <Campaigns data={data} />
+          <h2 className="section">Ratings</h2>
+          <Ratings data={data} />
           <h2 className="section">App use and errors</h2>
           <Usage data={data} />
           <Errors data={data} />
