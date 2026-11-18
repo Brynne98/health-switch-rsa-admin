@@ -91,12 +91,11 @@ export type Overview = {
   }[];
   /**
    * Per healthswitch.co.za/get?from= source, since its first click (HSR-171).
-   * `appleEstimate`: App Store downloads on days the source had iPhone clicks,
-   * capped at those clicks. Android installs and Pro are exact.
+   * Android installs and Pro are exact.
    */
   campaigns: {
     source: string; firstDay: string; clicksIos: number; clicksAndroid: number; clicksOther: number;
-    appleEstimate: number; androidInstalls: number; androidPro: number;
+    androidInstalls: number; androidPro: number;
     /** Apple's own first downloads for the link's ct= campaign; only people who share data with Apple, small counts dropped (HSR-179). */
     appleDownloads: number;
   }[];
