@@ -593,8 +593,8 @@ export function OverviewPage() {
   const charts = data?.revenue ?? [];
   const currency = charts.find((c) => c.currency)?.currency ?? 'USD';
   const updated = charts.length ? Math.max(...charts.map((c) => c.fetchedAt)) : 0;
-  // The job runs hourly, so two hours without an update means it has stopped.
-  const stale = updated > 0 && Date.now() - updated > 2 * 60 * 60 * 1000;
+  // The job runs daily at 05:00 UTC, so 26 hours without an update means it has stopped (HSR-189).
+  const stale = updated > 0 && Date.now() - updated > 26 * 60 * 60 * 1000;
 
   return (
     <>
@@ -624,7 +624,7 @@ export function OverviewPage() {
           </div>
           {updated > 0 && (
             <p className={`source wide ${stale ? 'stale' : ''}`}>
-              Money and Pro from RevenueCat, in {currency === 'ZAR' ? 'rand' : currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the hourly job in Convex` : `updated ${when(updated)}`}
+              Money and Pro from RevenueCat, in {currency === 'ZAR' ? 'rand' : currency === 'USD' ? 'US dollars' : currency} · {stale ? `not updated since ${when(updated)}: check the daily job in Convex` : `updated ${when(updated)}`}
             </p>
           )}
           <h2 className="section">Downloads</h2>
